@@ -1,12 +1,12 @@
 <p align="center"><img src=".github/icon/icon.png" width="128" height="128" alt=""></p>
 
-<h1 align="center">My Quiet Room</h1>
+<h1 align="center">The Little House</h1>
 
 <p align="center">A cozy little room on a rainy night, with a fire and a ticking clock to listen to.</p>
 
 <p align="center"><a href="#remix-it-with-lamp">Remix it with Lamp</a></p>
 
-<p align="center"><img src=".github/preview.png" width="720" alt="My Quiet Room"></p>
+<p align="center"><img src=".github/preview.png" width="720" alt="The Little House"></p>
 
 ## Make the room yours
 

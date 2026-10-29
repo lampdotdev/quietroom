@@ -1,6 +1,6 @@
 #!/bin/zsh
-# Builds the game for this Mac (./build.sh mac, build/MyQuietRoom.app), the iPhone and iPad simulator (./build.sh ios,
-# build/iOS/MyQuietRoom.app) or Android (./build.sh android): the Swift around the page, with the page copied in.
+# Builds the game for this Mac (./build.sh mac, build/TheLittleHouse.app), the iPhone and iPad simulator (./build.sh ios,
+# build/iOS/TheLittleHouse.app) or Android (./build.sh android): the Swift around the page, with the page copied in.
 set -euo pipefail
 cd "$(dirname "$0")"
 PLACE="${1:-mac}"
@@ -39,31 +39,31 @@ fi
 if [[ "$PLACE" == "ios" ]]; then
   SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
   FLAGS=(-c debug --triple "$(uname -m)-apple-ios17.0-simulator" --sdk "$SDK" --scratch-path .build/ios)
-  APP="build/iOS/MyQuietRoom.app"
+  APP="build/iOS/TheLittleHouse.app"
 else
   FLAGS=(-c release "${RESTRICT[@]}")
-  APP="build/MyQuietRoom.app"
+  APP="build/TheLittleHouse.app"
 fi
 # On this Mac, Lamp's player when Lamp hands it over (LAMP_PLAYER): copied, not compiled, so nothing of Apple's tools runs.
 PLAYER="${LAMP_PLAYER:-}"
 [[ "$PLACE" == "ios" ]] && PLAYER=""
 if [[ -z "$PLAYER" ]]; then
-  BIN="$(swift build "${FLAGS[@]}" --show-bin-path)/MyQuietRoom"
+  BIN="$(swift build "${FLAGS[@]}" --show-bin-path)/TheLittleHouse"
   swift build "${FLAGS[@]}" 2>&1
 fi
 rm -rf "$APP"
 if [[ "$PLACE" == "ios" ]]; then
   mkdir -p "$APP"
-  cp "$BIN" "$APP/MyQuietRoom"
+  cp "$BIN" "$APP/TheLittleHouse"
   cat > "$APP/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleExecutable</key><string>MyQuietRoom</string>
+  <key>CFBundleExecutable</key><string>TheLittleHouse</string>
   <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.myquietroom</string>
-  <key>CFBundleName</key><string>My Quiet Room</string>
-  <key>CFBundleDisplayName</key><string>My Quiet Room</string>
+  <key>CFBundleName</key><string>The Little House</string>
+  <key>CFBundleDisplayName</key><string>The Little House</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>CFBundleVersion</key><string>1</string>
@@ -77,27 +77,27 @@ if [[ "$PLACE" == "ios" ]]; then
   <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
   <key>GCSupportsControllerUserInteraction</key><true/>
   <key>GCSupportedGameControllers</key><array><dict><key>ProfileName</key><string>ExtendedGamepad</string></dict></array>
-  <key>NSMicrophoneUsageDescription</key><string>My Quiet Room listens to your microphone.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>My Quiet Room turns your speech into text.</string>
-  <key>NSCameraUsageDescription</key><string>My Quiet Room uses your camera.</string>
-  <key>NSPhotoLibraryUsageDescription</key><string>My Quiet Room uses your photos.</string>
-  <key>NSPhotoLibraryAddUsageDescription</key><string>My Quiet Room saves pictures to your photos.</string>
-  <key>NSCalendarsFullAccessUsageDescription</key><string>My Quiet Room reads and adds calendar events.</string>
-  <key>NSRemindersFullAccessUsageDescription</key><string>My Quiet Room reads and adds reminders.</string>
-  <key>NSContactsUsageDescription</key><string>My Quiet Room looks up people in your contacts.</string>
-  <key>NSLocationWhenInUseUsageDescription</key><string>My Quiet Room uses your location.</string>
-  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>My Quiet Room uses your location, also in the background.</string>
-  <key>NSMotionUsageDescription</key><string>My Quiet Room uses the motion sensors and your step count.</string>
-  <key>NSBluetoothAlwaysUsageDescription</key><string>My Quiet Room connects to Bluetooth devices.</string>
-  <key>NSFaceIDUsageDescription</key><string>My Quiet Room unlocks with Face ID.</string>
-  <key>NSHealthShareUsageDescription</key><string>My Quiet Room reads your health data.</string>
-  <key>NSHealthUpdateUsageDescription</key><string>My Quiet Room saves health data.</string>
-  <key>NFCReaderUsageDescription</key><string>My Quiet Room reads NFC tags.</string>
-  <key>NSSiriUsageDescription</key><string>My Quiet Room works with Siri and Shortcuts.</string>
-  <key>NSNearbyInteractionUsageDescription</key><string>My Quiet Room finds nearby devices.</string>
-  <key>NSLocalNetworkUsageDescription</key><string>My Quiet Room talks to Lamp on your Mac and to devices on your network.</string>
-  <key>NSAppleMusicUsageDescription</key><string>My Quiet Room plays music from your library.</string>
-  <key>NSHomeKitUsageDescription</key><string>My Quiet Room reads and controls your home.</string>
+  <key>NSMicrophoneUsageDescription</key><string>The Little House listens to your microphone.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>The Little House turns your speech into text.</string>
+  <key>NSCameraUsageDescription</key><string>The Little House uses your camera.</string>
+  <key>NSPhotoLibraryUsageDescription</key><string>The Little House uses your photos.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key><string>The Little House saves pictures to your photos.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>The Little House reads and adds calendar events.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>The Little House reads and adds reminders.</string>
+  <key>NSContactsUsageDescription</key><string>The Little House looks up people in your contacts.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>The Little House uses your location.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>The Little House uses your location, also in the background.</string>
+  <key>NSMotionUsageDescription</key><string>The Little House uses the motion sensors and your step count.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>The Little House connects to Bluetooth devices.</string>
+  <key>NSFaceIDUsageDescription</key><string>The Little House unlocks with Face ID.</string>
+  <key>NSHealthShareUsageDescription</key><string>The Little House reads your health data.</string>
+  <key>NSHealthUpdateUsageDescription</key><string>The Little House saves health data.</string>
+  <key>NFCReaderUsageDescription</key><string>The Little House reads NFC tags.</string>
+  <key>NSSiriUsageDescription</key><string>The Little House works with Siri and Shortcuts.</string>
+  <key>NSNearbyInteractionUsageDescription</key><string>The Little House finds nearby devices.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>The Little House talks to Lamp on your Mac and to devices on your network.</string>
+  <key>NSAppleMusicUsageDescription</key><string>The Little House plays music from your library.</string>
+  <key>NSHomeKitUsageDescription</key><string>The Little House reads and controls your home.</string>
   <key>DTPlatformName</key><string>iphonesimulator</string>
   <key>CFBundleSupportedPlatforms</key><array><string>iPhoneSimulator</string></array>
 </dict></plist>
@@ -107,15 +107,15 @@ else
   if [[ -n "$PLAYER" ]]; then
     mkdir -p "$(dirname "$APP")"
     cp -Rp "$PLAYER" "$APP"
-    mv "$APP/Contents/MacOS/LampPlayer" "$APP/Contents/MacOS/MyQuietRoom"
+    mv "$APP/Contents/MacOS/LampPlayer" "$APP/Contents/MacOS/TheLittleHouse"
     PLAYED="<key>LampPlayerVersion</key><string>${LAMP_PLAYER_VERSION:-}</string>"
   else
     mkdir -p "$APP/Contents/MacOS"
-    cp "$BIN" "$APP/Contents/MacOS/MyQuietRoom"
+    cp "$BIN" "$APP/Contents/MacOS/TheLittleHouse"
     # The copy names the SDK it was really built with (see a Mac app's build.sh), so macOS draws it as that SDK does.
     if SDKVER="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null)" \
-      && MINOS="$(otool -l "$APP/Contents/MacOS/MyQuietRoom" | awk '/minos/ {print $2; exit}')" && [ -n "$MINOS" ]; then
-      xcrun vtool -set-build-version macos "$MINOS" "$SDKVER" -replace -output "$APP/Contents/MacOS/MyQuietRoom" "$APP/Contents/MacOS/MyQuietRoom" >/dev/null 2>&1 || true
+      && MINOS="$(otool -l "$APP/Contents/MacOS/TheLittleHouse" | awk '/minos/ {print $2; exit}')" && [ -n "$MINOS" ]; then
+      xcrun vtool -set-build-version macos "$MINOS" "$SDKVER" -replace -output "$APP/Contents/MacOS/TheLittleHouse" "$APP/Contents/MacOS/TheLittleHouse" >/dev/null 2>&1 || true
     fi
   fi
   cat > "$APP/Contents/Info.plist" <<PLIST
@@ -123,29 +123,29 @@ else
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleExecutable</key><string>MyQuietRoom</string>
+  <key>CFBundleExecutable</key><string>TheLittleHouse</string>
   <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.myquietroom</string>
-  <key>CFBundleName</key><string>My Quiet Room</string>
-  <key>CFBundleDisplayName</key><string>My Quiet Room</string>
+  <key>CFBundleName</key><string>The Little House</string>
+  <key>CFBundleDisplayName</key><string>The Little House</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
   <key>GCSupportsGameMode</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>My Quiet Room listens to your microphone.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>My Quiet Room turns your speech into text.</string>
-  <key>NSCameraUsageDescription</key><string>My Quiet Room uses your camera.</string>
-  <key>NSPhotoLibraryUsageDescription</key><string>My Quiet Room uses your photos.</string>
-  <key>NSPhotoLibraryAddUsageDescription</key><string>My Quiet Room saves pictures to your photos.</string>
-  <key>NSCalendarsFullAccessUsageDescription</key><string>My Quiet Room reads and adds calendar events.</string>
-  <key>NSRemindersFullAccessUsageDescription</key><string>My Quiet Room reads and adds reminders.</string>
-  <key>NSContactsUsageDescription</key><string>My Quiet Room looks up people in your contacts.</string>
-  <key>NSBluetoothAlwaysUsageDescription</key><string>My Quiet Room connects to Bluetooth devices.</string>
-  <key>NSAppleEventsUsageDescription</key><string>My Quiet Room reads your email and drafts replies through Mail.</string>
-  <key>NSLocalNetworkUsageDescription</key><string>My Quiet Room looks for printers and other devices on your network.</string>
-  <key>NSLocationUsageDescription</key><string>My Quiet Room uses your location.</string>
-  <key>NSLocationWhenInUseUsageDescription</key><string>My Quiet Room uses your location.</string>
-  <key>NSAppleMusicUsageDescription</key><string>My Quiet Room plays music from your library.</string>
+  <key>NSMicrophoneUsageDescription</key><string>The Little House listens to your microphone.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>The Little House turns your speech into text.</string>
+  <key>NSCameraUsageDescription</key><string>The Little House uses your camera.</string>
+  <key>NSPhotoLibraryUsageDescription</key><string>The Little House uses your photos.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key><string>The Little House saves pictures to your photos.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>The Little House reads and adds calendar events.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>The Little House reads and adds reminders.</string>
+  <key>NSContactsUsageDescription</key><string>The Little House looks up people in your contacts.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>The Little House connects to Bluetooth devices.</string>
+  <key>NSAppleEventsUsageDescription</key><string>The Little House reads your email and drafts replies through Mail.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>The Little House looks for printers and other devices on your network.</string>
+  <key>NSLocationUsageDescription</key><string>The Little House uses your location.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>The Little House uses your location.</string>
+  <key>NSAppleMusicUsageDescription</key><string>The Little House plays music from your library.</string>
   <key>LampPlayer</key><dict><key>kind</key><string>page</string><key>scheme</key><string>lamp-web-app</string></dict>
   $PLAYED
   <key>NSPrincipalClass</key><string>NSApplication</string>

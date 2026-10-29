@@ -1,7 +1,7 @@
 {
   "remixOf" : [
     {
-      "name" : "My Quiet Room",
+      "name" : "The Little House",
       "starter" : "quietroom",
       "url" : "https://github.com/lampdotdev/quietroom"
     }
