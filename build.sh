@@ -34,7 +34,7 @@ if [[ "$PLACE" == "android" ]]; then
   /usr/bin/sips -s format png -z 432 432 "$ICON" --out build/android-res/mipmap-xxxhdpi/ic_launcher.png > /dev/null
   cd Lamp/Android
   printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
-  exec "$LAMP_GRADLE" --console=plain -q "-Dlamp.app=myquietroom" assembleDebug
+  exec "$LAMP_GRADLE" --console=plain -q "-Dlamp.app=thelittlehouse" assembleDebug
 fi
 if [[ "$PLACE" == "ios" ]]; then
   SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
@@ -61,7 +61,7 @@ if [[ "$PLACE" == "ios" ]]; then
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleExecutable</key><string>TheLittleHouse</string>
-  <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.myquietroom</string>
+  <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.thelittlehouse</string>
   <key>CFBundleName</key><string>The Little House</string>
   <key>CFBundleDisplayName</key><string>The Little House</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -124,7 +124,7 @@ else
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleExecutable</key><string>TheLittleHouse</string>
-  <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.myquietroom</string>
+  <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.thelittlehouse</string>
   <key>CFBundleName</key><string>The Little House</string>
   <key>CFBundleDisplayName</key><string>The Little House</string>
   <key>CFBundlePackageType</key><string>APPL</string>

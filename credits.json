@@ -2,8 +2,8 @@
   "remixOf" : [
     {
       "name" : "The Little House",
-      "starter" : "quietroom",
-      "url" : "https://github.com/lampdotdev/quietroom"
+      "starter" : "thelittlehouse",
+      "url" : "https://github.com/lampdotdev/thelittlehouse"
     }
   ],
   "upstream" : [
