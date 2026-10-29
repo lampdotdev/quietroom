@@ -2,7 +2,7 @@
 
 <h1 align="center">My Quiet Room</h1>
 
-<p align="center">A quiet room of rain, waves, birds and noise you mix yourself, with presets and a sleep timer.</p>
+<p align="center">A quiet room of rain, waves, birds and noise you mix yourself, with a sleep timer.</p>
 
 <p align="center"><a href="#remix-it-with-lamp">Remix it with Lamp</a></p>
 
