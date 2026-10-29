@@ -1,8 +1,12 @@
+<p align="center"><img src=".github/icon/icon.png" width="128" height="128" alt=""></p>
+
 <h1 align="center">My Quiet Room</h1>
 
 <p align="center">A quiet room of rain, waves, birds and noise you mix yourself, with presets and a sleep timer.</p>
 
 <p align="center"><a href="#remix-it-with-lamp">Remix it with Lamp</a></p>
+
+<p align="center"><img src=".github/preview.png" width="720" alt="My Quiet Room"></p>
 
 ## Make the room yours
 
