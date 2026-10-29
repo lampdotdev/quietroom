@@ -226,14 +226,15 @@
   function setPlaying(value) {
     if (value && !selectedIds().length) { notify('Pick a sound first.'); return; }
     playing = value;
-    if (value) audio();
+    // Any way of starting the sound wakes the house, as the Play button and touching the room do.
+    if (value) { asleep = false; audio(); }
     sync();
   }
 
   function toggle(id) {
     var s = state[id];
     if (s.selected) { s.selected = false; s.volume = 0.5; }
-    else { s.selected = true; history = null; playing = true; audio(); }
+    else { s.selected = true; history = null; playing = true; asleep = false; audio(); }
     if (!selectedIds().length) playing = false;
     save();
     sync();
@@ -286,6 +287,7 @@
     if (!history) return;
     state = history.state;
     playing = history.playing;
+    if (playing) asleep = false;
     history = null;
     save();
     sync();
