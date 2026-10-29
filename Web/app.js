@@ -763,7 +763,7 @@
   });
 
   // For whoever looks at the room from outside (Lamp's preview): what's selected and whether it's playing.
-  window.QuietRoom = {
+  window.LittleHouse = {
     state: function () { return { playing: playing, selected: selectedIds(), voices: Object.keys(voices), context: context ? context.state : 'none' }; }
   };
 })();

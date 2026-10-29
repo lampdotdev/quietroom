@@ -8,7 +8,7 @@
 
 <p align="center"><img src=".github/preview.png" width="720" alt="The Little House"></p>
 
-## Make the room yours
+## Make The Little House yours
 
 It's yours to change by asking Lamp. A few places to start:
 
@@ -18,7 +18,7 @@ It's yours to change by asking Lamp. A few places to start:
 
 ## Remix it with Lamp
 
-[Lamp](https://lamp.dev) is a Mac app that builds apps from a description and changes them as you ask. In Lamp, choose File → Open from GitHub… and paste `https://github.com/lampdotdev/quietroom`: you get this exact wish, yours to change, with the credits below kept.
+[Lamp](https://lamp.dev) is a Mac app that builds apps from a description and changes them as you ask. In Lamp, choose File → Open from GitHub… and paste `https://github.com/lampdotdev/thelittlehouse`: you get this exact wish, yours to change, with the credits below kept.
 
 ## Building it
 
