@@ -1,0 +1,218 @@
+{
+  "remixOf" : [
+    {
+      "name" : "My Quiet Room",
+      "starter" : "quietroom",
+      "url" : "https://github.com/lampdotdev/quietroom"
+    }
+  ],
+  "upstream" : [
+    {
+      "adapted" : true,
+      "author" : "remvze",
+      "commit" : "11c0be2200116a3635880d600fd6953899cc51a3",
+      "license" : "MIT",
+      "licenseFile" : "Licenses/remvze/moodist/LICENSE",
+      "name" : "moodist",
+      "url" : "https://github.com/remvze/moodist"
+    },
+    {
+      "adapted" : false,
+      "author" : "jmbphilmes",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Rain light 2 (rural)",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/jmbphilmes/sounds/200273/"
+    },
+    {
+      "adapted" : false,
+      "author" : "mmorgaine",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "January rain on a window.aif",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/mmorgaine/sounds/333510/"
+    },
+    {
+      "adapted" : false,
+      "author" : "Ionizing",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "thunderstorm_5_28_06.wav",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/Ionizing/sounds/19283/"
+    },
+    {
+      "adapted" : false,
+      "author" : "regosss",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Thunderstorm",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/regosss/sounds/238295/"
+    },
+    {
+      "adapted" : false,
+      "author" : "jackthemurray",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Stream River Water Up Close",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/jackthemurray/sounds/433589/"
+    },
+    {
+      "adapted" : false,
+      "author" : "BurghRecords",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Gentle Stream Natural Stream Sound",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/BurghRecords/sounds/446019/"
+    },
+    {
+      "adapted" : false,
+      "author" : "craiggroshek",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Seawash (calm)",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/craiggroshek/sounds/176617/"
+    },
+    {
+      "adapted" : false,
+      "author" : "Stek59",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Autumn wind and dry leaves.wav",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/Stek59/sounds/457318/"
+    },
+    {
+      "adapted" : false,
+      "author" : "BurghRecords",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Birds In Spring (Scotland)",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/BurghRecords/sounds/463903/"
+    },
+    {
+      "adapted" : false,
+      "author" : "hdfreema",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Night Crickets Back Porch.aiff",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/hdfreema/sounds/333221/"
+    },
+    {
+      "adapted" : false,
+      "author" : "dethrok",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Cicadas",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/dethrok/sounds/272169/"
+    },
+    {
+      "adapted" : false,
+      "author" : "moxobna",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "1103campfire1.wav",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/moxobna/sounds/62487/"
+    },
+    {
+      "adapted" : false,
+      "author" : "priesjensen",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "People talking at cafe ambience",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/priesjensen/sounds/482990/"
+    },
+    {
+      "adapted" : false,
+      "author" : "gecop",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Riding Train interior recording",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/gecop/sounds/525058/"
+    },
+    {
+      "adapted" : false,
+      "author" : "unfa",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Electric Fan 01",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/unfa/sounds/170870/"
+    },
+    {
+      "adapted" : false,
+      "author" : "Yuval",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "small clock in room",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/Yuval/sounds/211192/"
+    },
+    {
+      "adapted" : false,
+      "author" : "Rodzuz",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "typing",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/Rodzuz/sounds/393902/"
+    },
+    {
+      "adapted" : false,
+      "author" : "giddster",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/sounds/LICENSE-CC0-1.0.txt",
+      "name" : "Wind chimes 1",
+      "noticeFiles" : [
+        "Licenses/sounds/NOTICE-sounds.md"
+      ],
+      "url" : "https://freesound.org/people/giddster/sounds/437337/"
+    }
+  ]
+}

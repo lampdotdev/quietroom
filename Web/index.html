@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Quiet Room</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="glow" aria-hidden="true"></div>
+<header class="bar">
+  <div class="title">
+    <h1>My Quiet Room</h1>
+    <p id="now" class="now">Pick a few sounds to fill the room.</p>
+  </div>
+  <div class="transport">
+    <button id="play" class="play" type="button">Play</button>
+    <label class="master"><span>Volume</span><input id="master" type="range" min="0" max="1" step="0.01" aria-label="Overall volume"></label>
+  </div>
+  <nav class="tools" aria-label="Tools">
+    <button id="shuffle" type="button">Shuffle</button>
+    <button id="clear" type="button">Clear</button>
+    <button type="button" data-open="presets-panel">Presets</button>
+    <button type="button" data-open="sleep-panel">Sleep Timer</button>
+    <button type="button" data-open="mix-panel">Mix Code</button>
+    <button type="button" data-open="credits-panel">Credits</button>
+    <span id="sleep-left" class="badge" hidden></span>
+  </nav>
+</header>
+
+<main id="sounds" class="sounds"></main>
+
+<footer class="foot">
+  Based on <a href="https://github.com/remvze/moodist" target="_blank" rel="noopener">Moodist</a> by remvze.
+  Who made each sound is under Credits.
+</footer>
+
+<div id="veil" class="veil" hidden></div>
+
+<section id="presets-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="presets-title" hidden>
+  <div class="panel-head"><h2 id="presets-title">Presets</h2><button class="close" type="button" aria-label="Close">✕</button></div>
+  <form id="preset-form" class="row">
+    <input id="preset-name" type="text" placeholder="Name this mix" aria-label="Preset name" maxlength="60" required>
+    <button id="preset-save" type="submit">Save</button>
+  </form>
+  <div id="preset-list" class="preset-list"></div>
+</section>
+
+<section id="sleep-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="sleep-title" hidden>
+  <div class="panel-head"><h2 id="sleep-title">Sleep Timer</h2><button class="close" type="button" aria-label="Close">✕</button></div>
+  <p class="note">Stop the sounds after a while, fading out gently.</p>
+  <form id="sleep-form" class="row">
+    <label class="field"><span>Hours</span><input id="sleep-hours" type="number" min="0" max="23" value="0"></label>
+    <label class="field"><span>Minutes</span><input id="sleep-minutes" type="number" min="0" max="59" value="10"></label>
+    <button type="submit" class="primary">Start</button>
+  </form>
+  <div id="sleep-running" class="sleep-running" hidden>
+    <div id="sleep-count" class="count"></div>
+    <button id="sleep-cancel" type="button">Cancel Timer</button>
+  </div>
+</section>
+
+<section id="mix-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="mix-title" hidden>
+  <div class="panel-head"><h2 id="mix-title">Mix Code</h2><button class="close" type="button" aria-label="Close">✕</button></div>
+  <p class="note">Copy this code and send it to someone with My Quiet Room, or paste theirs below.</p>
+  <div class="row">
+    <input id="mix-code" type="text" readonly aria-label="Your mix code">
+    <button id="mix-copy" type="button">Copy</button>
+  </div>
+  <form id="mix-form" class="row">
+    <input id="mix-import" type="text" placeholder="Paste a mix code" aria-label="Mix code to import" required>
+    <button type="submit">Import</button>
+  </form>
+  <p id="mix-said" class="note" aria-live="polite"></p>
+</section>
+
+<section id="credits-panel" class="panel wide" role="dialog" aria-modal="true" aria-labelledby="credits-title" hidden>
+  <div class="panel-head"><h2 id="credits-title">Credits</h2><button class="close" type="button" aria-label="Close">✕</button></div>
+  <p>Based on <a href="https://github.com/remvze/moodist" target="_blank" rel="noopener">Moodist</a> by remvze (MIT).
+    Its mixer, presets, sleep timer and binaural beats are adapted here; its recordings aren’t used.</p>
+  <p class="note">Noises and binaural beats are made as they play. Every recording is CC0 or public domain, given away by
+    the person who made it:</p>
+  <ul id="credit-list" class="credit-list"></ul>
+</section>
+
+<div id="snackbar" class="snackbar" role="status" hidden></div>
+
+<script src="lamp.js"></script>
+<script src="sounds.js"></script>
+<script src="generators.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
