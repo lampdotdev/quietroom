@@ -4,21 +4,21 @@
 
 <p align="center">A cozy little room on a rainy night, with a fire and a ticking clock to listen to.</p>
 
-<p align="center"><a href="#remix-it-with-lamp">Remix it with Lamp</a></p>
+<p align="center"><a href="https://lamp.dev/?repo=https://github.com/lampdotdev/thelittlehouse&amp;from=readme"><img src=".github/open-in-lamp.svg" width="164" height="48" alt="Open in Lamp"></a></p>
 
 <p align="center"><img src=".github/preview.png" width="720" alt="The Little House"></p>
 
 ## Make The Little House yours
 
-It's yours to change by asking Lamp. A few places to start:
+Each opens Lamp with a copy of The Little House and that change, ready to send:
 
-- Make it a starry night sky
-- Wake me gently with birdsong
-- Make it a rainy Tokyo night
+- [Make it a starry night sky](https://lamp.dev/?repo=https://github.com/lampdotdev/thelittlehouse&from=readme&ask=Make%20it%20a%20starry%20night%20sky)
+- [Wake me gently with birdsong](https://lamp.dev/?repo=https://github.com/lampdotdev/thelittlehouse&from=readme&ask=Wake%20me%20gently%20with%20birdsong)
+- [Make it a rainy Tokyo night](https://lamp.dev/?repo=https://github.com/lampdotdev/thelittlehouse&from=readme&ask=Make%20it%20a%20rainy%20Tokyo%20night)
 
-## Remix it with Lamp
+## Open it in Lamp
 
-[Lamp](https://lamp.dev) is a Mac app that builds apps from a description and changes them as you ask. In Lamp, choose File → Open from GitHub… and paste `https://github.com/lampdotdev/thelittlehouse`: you get this exact wish, yours to change, with the credits below kept.
+[Lamp](https://lamp.dev) is a Mac app that builds apps from a description and changes them as you ask. [Open The Little House in Lamp](https://lamp.dev/?repo=https://github.com/lampdotdev/thelittlehouse&from=readme) for a copy of your own, to use and to change as you like, with the credits below kept. Or, in Lamp, choose File → Open from GitHub… and paste `https://github.com/lampdotdev/thelittlehouse`.
 
 ## Building it
 

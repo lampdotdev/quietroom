@@ -553,6 +553,9 @@
         }
 
         var body: some Commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About \(LampAbout.name)") { LampAbout.show() }
+            }
             CommandGroup(after: .appInfo) {
                 Button("Customize with Lamp…") {
                     LampSidebar.openFromMenu()
@@ -562,6 +565,41 @@
             CommandGroup(after: .saveItem) {
                 Button("Share…") { LampShareApp.share() }
             }
+        }
+    }
+
+    /// The About window, with the app's credits as Lamp has them now. The Credits.html written into the bundle is only
+    /// as new as the app's install, and a credit added while the app is open (work brought in with a change that went
+    /// into the running app, with no install) would wait for the next one; Lamp answers from the wish's credits.json.
+    /// With no answer from Lamp (it isn't open, or this app isn't its), it's the bundle's page, as macOS shows it.
+    @MainActor enum LampAbout {
+        static var name: String {
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? ProcessInfo.processInfo.processName
+        }
+
+        static func show() {
+            Task {
+                let credits = await ask()
+                NSApp.activate()
+                NSApp.orderFrontStandardAboutPanel(options: credits.map { [.credits: $0] } ?? [:])
+            }
+        }
+
+        /// The credits page Lamp has for this app now; empty when it has none, nil when Lamp didn't answer.
+        private static func ask() async -> NSAttributedString? {
+            guard let url = URL(string: lampGateway + "/app/credits") else { return nil }
+            // Short: the window is opened by a click, and the bundle's page is there to fall back on.
+            var request = URLRequest(url: url, timeoutInterval: 1.5)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(LampInstall.token)", forHTTPHeaderField: "Authorization")
+            request.httpBody = Data("{}".utf8)
+            guard let (data, response) = try? await URLSession.shared.data(for: request),
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let answer = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+            guard let page = answer["page"] as? String else { return NSAttributedString() }
+            return NSAttributedString(html: Data(page.utf8), documentAttributes: nil)
         }
     }
 
@@ -16463,97 +16501,43 @@
     #endif
 
 #if os(macOS)
-/// Lamp's flame, drawn like an SF Symbol: the app icon's outer flame as an outline, its inner flame filled.
+/// Lamp's mark: the system's shuffle symbol, the one Lamp shows for remixing.
 enum LampGlyph {
-    /// Width over height.
-    static let aspect: CGFloat = 516 / 725
+    static let symbol = "shuffle"
 
-    /// The two flames in a box one unit tall, y down, from the icon's own drawing. The inner one is smaller
-    /// than in the icon, about its foot, so the outline has room around it at a symbol's size.
-    static let paths: (outer: CGPath, inner: CGPath) = {
-        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: (x - 254) / 725, y: (y - 150) / 725) }
-        let outer = CGMutablePath()
-        outer.move(to: p(540, 150))
-        outer.addCurve(to: p(770, 600), control1: p(560, 290), control2: p(770, 380))
-        outer.addCurve(to: p(512, 875), control1: p(770, 755), control2: p(655, 875))
-        outer.addCurve(to: p(254, 600), control1: p(369, 875), control2: p(254, 755))
-        outer.addCurve(to: p(398, 325), control1: p(254, 465), control2: p(335, 395))
-        outer.addCurve(to: p(482, 472), control1: p(408, 405), control2: p(440, 450))
-        outer.addCurve(to: p(540, 150), control1: p(468, 350), control2: p(492, 250))
-        outer.closeSubpath()
-        let inner = CGMutablePath()
-        inner.move(to: p(524, 388))
-        inner.addCurve(to: p(662, 648), control1: p(560, 476), control2: p(662, 525))
-        inner.addCurve(to: p(512, 812), control1: p(662, 748), control2: p(597, 812))
-        inner.addCurve(to: p(362, 648), control1: p(427, 812), control2: p(362, 748))
-        inner.addCurve(to: p(452, 474), control1: p(362, 565), control2: p(418, 522))
-        inner.addCurve(to: p(500, 558), control1: p(462, 524), control2: p(480, 548))
-        inner.addCurve(to: p(524, 388), control1: p(494, 486), control2: p(502, 436))
-        inner.closeSubpath()
-        let foot = p(512, 812)
-        var smaller = CGAffineTransform(translationX: foot.x, y: foot.y).scaledBy(x: 0.72, y: 0.72)
-            .translatedBy(x: -foot.x, y: -foot.y)
-        return (outer, inner.copy(using: &smaller) ?? inner)
-    }()
-
-    /// The outline's width as a share of the point size, as heavy as a symbol's lines at that weight.
-    static func line(_ weight: NSFont.Weight) -> CGFloat {
-        switch weight.rawValue {
-        case ..<NSFont.Weight.regular.rawValue: 0.062
-        case ..<NSFont.Weight.medium.rawValue: 0.07
-        case ..<NSFont.Weight.semibold.rawValue: 0.075
-        case ..<NSFont.Weight.bold.rawValue: 0.085
-        default: 0.095
-        }
-    }
-
-    /// An image as a symbol at that point size would be: a template, which a button tints as it does a symbol,
-    /// unless it's given a color of its own.
+    /// The symbol at that point size and weight: a template, which a button tints as it does any symbol, unless
+    /// it's given a color of its own.
     static func image(pointSize: CGFloat, weight: NSFont.Weight, color: NSColor? = nil,
                       description: String = "Customize This App") -> NSImage {
-        let width = pointSize * line(weight)
-        let size = NSSize(width: (pointSize * aspect + width).rounded(.up), height: (pointSize + width).rounded(.up))
-        let image = NSImage(size: size, flipped: true) { box in
-            guard let context = NSGraphicsContext.current?.cgContext else { return false }
-            let ink = (color ?? .black).cgColor
-            context.translateBy(x: (box.width - pointSize * aspect) / 2, y: (box.height - pointSize) / 2)
-            context.scaleBy(x: pointSize, y: pointSize)
-            context.addPath(paths.outer)
-            context.setLineWidth(width / pointSize)
-            context.setLineJoin(.round)
-            context.setStrokeColor(ink)
-            context.strokePath()
-            context.addPath(paths.inner)
-            context.setFillColor(ink)
-            context.fillPath()
-            return true
-        }
+        var configuration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weight)
+        if let color { configuration = configuration.applying(NSImage.SymbolConfiguration(paletteColors: [color])) }
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)?
+            .withSymbolConfiguration(configuration) ?? NSImage(size: NSSize(width: pointSize, height: pointSize))
         image.isTemplate = color == nil
-        image.accessibilityDescription = description
         return image
     }
 
-    /// The flame in SwiftUI, as tall as `size` points, in the foreground style.
+    /// The SwiftUI weight of the same name as an AppKit one.
+    static func fontWeight(_ weight: NSFont.Weight) -> Font.Weight {
+        switch weight.rawValue {
+        case ..<NSFont.Weight.light.rawValue: .thin
+        case ..<NSFont.Weight.regular.rawValue: .light
+        case ..<NSFont.Weight.medium.rawValue: .regular
+        case ..<NSFont.Weight.semibold.rawValue: .medium
+        case ..<NSFont.Weight.bold.rawValue: .semibold
+        case ..<NSFont.Weight.heavy.rawValue: .bold
+        default: .heavy
+        }
+    }
+
+    /// The symbol in SwiftUI, at `size` points, in the foreground style.
     struct Mark: View {
         var size: CGFloat
         var weight: NSFont.Weight = .medium
 
         var body: some View {
-            ZStack {
-                Flame(inner: false).stroke(style: StrokeStyle(lineWidth: size * LampGlyph.line(weight), lineJoin: .round))
-                Flame(inner: true).fill()
-            }
-            .frame(width: size * LampGlyph.aspect, height: size)
-            .padding(size * LampGlyph.line(weight) / 2)
+            Image(systemName: LampGlyph.symbol).font(.system(size: size, weight: LampGlyph.fontWeight(weight)))
         }
     }
-
-    private struct Flame: Shape {
-        let inner: Bool
-
-        func path(in rect: CGRect) -> Path {
-            Path(inner ? LampGlyph.paths.inner : LampGlyph.paths.outer)
-                .applying(CGAffineTransform(translationX: rect.minX, y: rect.minY).scaledBy(x: rect.height, y: rect.height))
-        }
-    }
-}#endif
+}
+#endif

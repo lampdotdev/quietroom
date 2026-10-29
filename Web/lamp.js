@@ -429,7 +429,8 @@
 
   // Doing things for the person: LampAI.act
 
-  var ACT_LIMITS = { steps: 4, writes: 6, seconds: 25 };
+  // 60 seconds is the longest any route allows; each answer says its route's own (`seconds`), and the turn keeps to it.
+  var ACT_LIMITS = { steps: 4, writes: 6, seconds: 60 };
   var actRan = {};      // turn id -> call key -> the result a write gave, while this copy of the page is open
   function actId() { return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   function isList(v) { return Object.prototype.toString.call(v) === '[object Array]'; }
@@ -466,7 +467,7 @@
       actRan[id] = {};
     }
     var ran = actRan[id];
-    var deadline = Date.now() + limits.seconds * 1000;
+    var started = Date.now(), deadline = started + limits.seconds * 1000;
     var out = { turn: id, reply: '', ask: false, choices: [], done: [], failed: [], skipped: [], reads: [], stopped: null, error: '' };
     var steps = [], route = null, writes = 0, over = false, settle;
     var declared = Object.keys(tools).map(function (name) {
@@ -571,6 +572,16 @@
       if (steps.length >= limits.steps - 1) body.final = true;
       if (o.model) body.model = o.model;
       post('/ai/act', body, left, deadline).then(function (answer) {
+        // The route's own time for a turn (25 seconds over OpenRouter, a minute through Claude Code, Codex or a model
+        // on the Mac) shortens the turn's deadline, counted from its start; it never lengthens it.
+        if (!over && typeof answer.seconds === 'number' && answer.seconds > 0) {
+          var end = started + Math.min(answer.seconds, limits.seconds) * 1000;
+          if (end < deadline) {
+            deadline = end;
+            clearTimeout(timer);
+            timer = setTimeout(function () { stop('time'); }, Math.max(0, deadline - Date.now()));
+          }
+        }
         // Cancelled, out of time or already over: an answer that comes late runs nothing.
         if (late()) return;
         route = answer.route || route;
@@ -682,8 +693,8 @@
 
     /**
      * Does what the person asks, in their own words, with the app's own reads and writes: the model picks calls,
-     * the page runs them, the model sees what happened, until it replies (at most 4 model calls, 6 writes and 25
-     * seconds a turn). Check `LampAI.isAvailable('act')` first; keep the app's buttons for everything.
+     * the page runs them, the model sees what happened, until it replies (at most 4 model calls and 6 writes a turn,
+     * and 25 seconds over OpenRouter or a minute through Claude Code, Codex or a model on the Mac). Check `LampAI.isAvailable('act')` first; keep the app's buttons for everything.
      *
      *     var turn = LampAI.act('Add milk', {
      *       about: 'A family dashboard: the calendar, chores and the shopping list.',
@@ -1232,6 +1243,66 @@
   var MESSAGE = 16384;     // bytes of JSON in one message, the most the relay passes on (ControllerWire.message)
   var on = { link: [], join: [], leave: [], button: [], axis: [], message: [], file: [], error: [] };
   var players = {}, byKey = {}, kept = {}, links = {}, link = null, linkTimer = null, askTimer = null, beatTimer = null, started = false, away = false;
+  // On the Xbox the page is https and opens its link to the relay through the host's pipe.
+function lampLinks(pipe) {
+    var piped = {};
+    function open(url) {
+      if (!pipe) return new WebSocket(url);
+      // One count for every block on the page, so two blocks' links never share an id on the host's pipe.
+      var id = window.__lampLinkIds = (window.__lampLinkIds || 0) + 1, sizes = [];
+      var s = piped[id] = { readyState: 0, bufferedAmount: 0, binaryType: 'arraybuffer', onopen: null, onmessage: null, onclose: null, onerror: null,
+        send: function (data) {
+          if (s.readyState !== 1) throw new Error('The link is not open.');
+          var m = { lamp: 'ws', op: 'send', id: id }, n;
+          if (typeof data === 'string') { m.text = data; n = data.length; }
+          else {
+            var b = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength), t = '';
+            for (var i = 0; i < b.length; i += 32768) t += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
+            m.data = btoa(t); n = b.length;
+          }
+          sizes.push(n); s.bufferedAmount += n;
+          pipe.postMessage(m);
+        },
+        close: function () {
+          if (s.readyState >= 2) return;
+          s.readyState = 2;
+          pipe.postMessage({ lamp: 'ws', op: 'close', id: id });
+          setTimeout(function () { gone(1000); }, 0);
+        } };
+      function gone(code) {
+        if (piped[id] !== s) return;
+        delete piped[id];
+        s.readyState = 3;
+        if (code === 1006 && s.onerror) s.onerror({});
+        if (s.onclose) s.onclose({ code: code });
+      }
+      s._heard = function (m) {
+        if (m.ev === 'open' && s.readyState === 0) { s.readyState = 1; if (s.onopen) s.onopen({}); }
+        else if (m.ev === 'message' && s.readyState === 1 && s.onmessage) {
+          var data = m.text;
+          if (typeof data !== 'string') {
+            var t = atob(m.data || ''), b = new Uint8Array(t.length);
+            for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+            data = b.buffer;
+          }
+          s.onmessage({ data: data });
+        } else if (m.ev === 'sent' && sizes.length) s.bufferedAmount -= sizes.shift();
+        else if (m.ev === 'close') gone(typeof m.code === 'number' ? m.code : 1006);
+      };
+      pipe.postMessage({ lamp: 'ws', op: 'open', id: id, url: url });
+      return s;
+    }
+    var hereFns = [];
+    if (pipe) pipe.addEventListener('message', function (e) {
+      var m = e.data;
+      if (!m || m.lamp !== 'ws') return;
+      if (m.ev === 'here') { for (var i = 0; i < hereFns.length; i++) hereFns[i](m); return; }
+      if (piped[m.id]) piped[m.id]._heard(m);
+    });
+    return { open: open, onHere: function (fn) { hereFns.push(fn); } };
+  }
+  var pipe = window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function' ? window.chrome.webview : null;
+  var relayLinks = lampLinks(pipe);
   // Players that come another way than Lamp's relay: each way's own code joins them here (`_attach`).
   var others = [];
   // Files in pieces: the same on the TV and on the phone.
@@ -1536,7 +1607,7 @@
     clearTimeout(l.again);
     if (!started || l.socket) return;
     var socket;
-    try { socket = new WebSocket(l.address); } catch (e) { return lost(l, 0); }
+    try { socket = relayLinks.open(l.address); } catch (e) { return lost(l, 0); }
     socket.binaryType = 'arraybuffer';
     l.socket = socket;
     l.heard = Date.now();
@@ -1613,6 +1684,7 @@
       return Promise.resolve();
     },
     stop: function () {
+      if (started && window.LampAI && LampAI._post) LampAI._post('/app/controller', { stop: true }, 20000).then(function () {}, function () {});
       started = false;
       clearTimeout(askTimer); clearInterval(beatTimer); clearInterval(linkTimer);
       for (var id in links) { var l = links[id]; clearTimeout(l.again); if (l.socket) { var s = l.socket; l.socket = null; s.close(); } }
@@ -2677,64 +2749,71 @@
     keep();
   }
 
-  // A link as a WebSocket, or on the Xbox its stand-in over the host's pipe, with the same calls the code below
-  // uses (send, close, readyState, bufferedAmount, onopen, onmessage, onclose, onerror). The host may open only
-  // links to this network, and tells the page as each frame has gone, so a file's flow counts what's still to go.
-  var piped = {}, pipeIds = 0;
-  function opener(url) {
-    if (!pipe) return new WebSocket(url);
-    var id = ++pipeIds, sizes = [];
-    var s = piped[id] = { readyState: 0, bufferedAmount: 0, binaryType: 'arraybuffer', onopen: null, onmessage: null, onclose: null, onerror: null,
-      send: function (data) {
-        if (s.readyState !== 1) throw new Error('The link is not open.');
-        var m = { lamp: 'ws', op: 'send', id: id }, n;
-        if (typeof data === 'string') { m.text = data; n = data.length; }
-        else {
-          var b = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength), t = '';
-          for (var i = 0; i < b.length; i += 32768) t += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
-          m.data = btoa(t); n = b.length;
-        }
-        sizes.push(n); s.bufferedAmount += n;
-        pipe.postMessage(m);
-      },
-      close: function () {
-        if (s.readyState >= 2) return;
-        s.readyState = 2;
-        pipe.postMessage({ lamp: 'ws', op: 'close', id: id });
-        setTimeout(function () { gone(1000); }, 0);
-      } };
-    function gone(code) {
-      if (piped[id] !== s) return;
-      delete piped[id];
-      s.readyState = 3;
-      if (code === 1006 && s.onerror) s.onerror({});
-      if (s.onclose) s.onclose({ code: code });
+  // A link as a WebSocket, or on the Xbox its stand-in over the host's pipe (`lampLinks`, the same as
+  // Lamp.controllers'), with the same calls the code below uses. The host also says which addresses this
+  // device has.
+function lampLinks(pipe) {
+    var piped = {};
+    function open(url) {
+      if (!pipe) return new WebSocket(url);
+      // One count for every block on the page, so two blocks' links never share an id on the host's pipe.
+      var id = window.__lampLinkIds = (window.__lampLinkIds || 0) + 1, sizes = [];
+      var s = piped[id] = { readyState: 0, bufferedAmount: 0, binaryType: 'arraybuffer', onopen: null, onmessage: null, onclose: null, onerror: null,
+        send: function (data) {
+          if (s.readyState !== 1) throw new Error('The link is not open.');
+          var m = { lamp: 'ws', op: 'send', id: id }, n;
+          if (typeof data === 'string') { m.text = data; n = data.length; }
+          else {
+            var b = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength), t = '';
+            for (var i = 0; i < b.length; i += 32768) t += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
+            m.data = btoa(t); n = b.length;
+          }
+          sizes.push(n); s.bufferedAmount += n;
+          pipe.postMessage(m);
+        },
+        close: function () {
+          if (s.readyState >= 2) return;
+          s.readyState = 2;
+          pipe.postMessage({ lamp: 'ws', op: 'close', id: id });
+          setTimeout(function () { gone(1000); }, 0);
+        } };
+      function gone(code) {
+        if (piped[id] !== s) return;
+        delete piped[id];
+        s.readyState = 3;
+        if (code === 1006 && s.onerror) s.onerror({});
+        if (s.onclose) s.onclose({ code: code });
+      }
+      s._heard = function (m) {
+        if (m.ev === 'open' && s.readyState === 0) { s.readyState = 1; if (s.onopen) s.onopen({}); }
+        else if (m.ev === 'message' && s.readyState === 1 && s.onmessage) {
+          var data = m.text;
+          if (typeof data !== 'string') {
+            var t = atob(m.data || ''), b = new Uint8Array(t.length);
+            for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
+            data = b.buffer;
+          }
+          s.onmessage({ data: data });
+        } else if (m.ev === 'sent' && sizes.length) s.bufferedAmount -= sizes.shift();
+        else if (m.ev === 'close') gone(typeof m.code === 'number' ? m.code : 1006);
+      };
+      pipe.postMessage({ lamp: 'ws', op: 'open', id: id, url: url });
+      return s;
     }
-    s._heard = function (m) {
-      if (m.ev === 'open' && s.readyState === 0) { s.readyState = 1; if (s.onopen) s.onopen({}); }
-      else if (m.ev === 'message' && s.readyState === 1 && s.onmessage) {
-        var data = m.text;
-        if (typeof data !== 'string') {
-          var t = atob(m.data || ''), b = new Uint8Array(t.length);
-          for (var i = 0; i < t.length; i++) b[i] = t.charCodeAt(i);
-          data = b.buffer;
-        }
-        s.onmessage({ data: data });
-      } else if (m.ev === 'sent' && sizes.length) s.bufferedAmount -= sizes.shift();
-      else if (m.ev === 'close') gone(typeof m.code === 'number' ? m.code : 1006);
-    };
-    pipe.postMessage({ lamp: 'ws', op: 'open', id: id, url: url });
-    return s;
+    var hereFns = [];
+    if (pipe) pipe.addEventListener('message', function (e) {
+      var m = e.data;
+      if (!m || m.lamp !== 'ws') return;
+      if (m.ev === 'here') { for (var i = 0; i < hereFns.length; i++) hereFns[i](m); return; }
+      if (piped[m.id]) piped[m.id]._heard(m);
+    });
+    return { open: open, onHere: function (fn) { hereFns.push(fn); } };
   }
-  if (pipe) pipe.addEventListener('message', function (e) {
-    var m = e.data;
-    if (!m || m.lamp !== 'ws') return;
-    if (m.ev === 'here') {
-      var list = m.addresses instanceof Array ? m.addresses : [];
-      for (var i = 0; i < list.length; i++) if (typeof list[i] === 'string' && /^\d+\.\d+\.\d+\.\d+$/.test(list[i])) { here = list[i]; break; }
-      return;
-    }
-    if (piped[m.id]) piped[m.id]._heard(m);
+  var links = lampLinks(pipe);
+  function opener(url) { return links.open(url); }
+  links.onHere(function (m) {
+    var list = m.addresses instanceof Array ? m.addresses : [];
+    for (var i = 0; i < list.length; i++) if (typeof list[i] === 'string' && /^\d+\.\d+\.\d+\.\d+$/.test(list[i])) { here = list[i]; break; }
   });
 
   // The wish's key from Lamp, sealed to a key pair made here and now, so nobody else on the network can open it.
