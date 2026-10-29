@@ -213,6 +213,58 @@
         "Licenses/sounds/NOTICE-sounds.md"
       ],
       "url" : "https://freesound.org/people/giddster/sounds/437337/"
+    },
+    {
+      "adapted" : false,
+      "author" : "three.js authors",
+      "commit" : "fae873455dff9602a916b4d2e8a985921448b62a",
+      "license" : "MIT",
+      "licenseFile" : "Licenses/three/LICENSE",
+      "name" : "three.js",
+      "noticeFiles" : [
+        "Licenses/three/NOTICE.md"
+      ],
+      "url" : "https://github.com/mrdoob/three.js"
+    },
+    {
+      "adapted" : false,
+      "author" : "Kenney",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/kenney/License-furniture-kit.txt",
+      "name" : "Furniture Kit",
+      "url" : "https://kenney.nl/assets/furniture-kit"
+    },
+    {
+      "adapted" : false,
+      "author" : "Kenney",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/kenney/License-nature-kit.txt",
+      "name" : "Nature Kit",
+      "url" : "https://kenney.nl/assets/nature-kit"
+    },
+    {
+      "adapted" : false,
+      "author" : "Kenney",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/kenney/License-particle-pack.txt",
+      "name" : "Particle Pack",
+      "url" : "https://kenney.nl/assets/particle-pack"
+    },
+    {
+      "adapted" : false,
+      "author" : "Quaternius",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/models/LICENSE-CC0-1.0.txt",
+      "name" : "Fireplace",
+      "url" : "https://poly.pizza/m/nzxZYIOCIr"
+    },
+    {
+      "adapted" : false,
+      "author" : "CreativeTrio",
+      "license" : "CC0-1.0",
+      "licenseFile" : "Licenses/models/LICENSE-CC0-1.0.txt",
+      "name" : "Grandfathers Clock",
+      "url" : "https://poly.pizza/m/09YKIkFZnA"
     }
   ]
 }

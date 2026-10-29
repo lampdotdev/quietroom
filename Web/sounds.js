@@ -4,7 +4,7 @@
  */
 var ROOM_CATEGORIES = [
   { id: 'rain', title: 'Rain', sounds: [
-    { id: 'rain', label: 'Rain', icon: '🌧️', file: 'rain.mp3' },
+    { id: 'rain', label: 'Rain', hint: 'Louder with the window open', icon: '🌧️', file: 'rain.mp3' },
     { id: 'rain-on-window', label: 'Rain on Window', icon: '🪟', file: 'rain-on-window.mp3' },
     { id: 'thunderstorm', label: 'Thunderstorm', icon: '⛈️', file: 'thunderstorm.mp3' },
     { id: 'thunder', label: 'Thunder', icon: '⚡️', file: 'thunder.mp3' }
@@ -17,7 +17,7 @@ var ROOM_CATEGORIES = [
     { id: 'birds', label: 'Birds', icon: '🐦', file: 'birds.mp3' },
     { id: 'crickets', label: 'Crickets', icon: '🌙', file: 'crickets.mp3' },
     { id: 'cicadas', label: 'Cicadas', icon: '🦗', file: 'cicadas.mp3' },
-    { id: 'campfire', label: 'Campfire', icon: '🔥', file: 'campfire.mp3' }
+    { id: 'campfire', label: 'Fire', hint: 'Louder nearer the fire', icon: '🔥', file: 'campfire.mp3' }
   ] },
   { id: 'places', title: 'Places', sounds: [
     { id: 'cafe', label: 'Café', icon: '☕️', file: 'cafe.mp3' },
@@ -25,7 +25,7 @@ var ROOM_CATEGORIES = [
   ] },
   { id: 'things', title: 'Things', sounds: [
     { id: 'fan', label: 'Fan', icon: '🌀', file: 'fan.mp3' },
-    { id: 'clock', label: 'Clock', icon: '🕰️', file: 'clock.mp3' },
+    { id: 'clock', label: 'Grandfather Clock', hint: 'Touch the clock to stop it', icon: '🕰️', file: 'clock.mp3' },
     { id: 'keyboard', label: 'Keyboard', icon: '⌨️', file: 'keyboard.mp3' },
     { id: 'wind-chimes', label: 'Wind Chimes', icon: '🎐', file: 'wind-chimes.mp3' }
   ] },

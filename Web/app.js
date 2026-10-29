@@ -1,4 +1,8 @@
-/* My Quiet Room: an ambient sound mixer, adapted from Moodist by remvze (MIT, https://github.com/remvze/moodist).
+/* The Little House: a cozy 3D room whose things mix the sounds (house.js draws it), around an ambient sound mixer
+ * adapted from Moodist by remvze (MIT, https://github.com/remvze/moodist). The room shapes the mix on top of each
+ * sound's own volume: the window lets the outside in (louder, and no longer muffled by a low-pass filter), the
+ * armchair's place between the window and the fire makes the fire and the clock nearer or further, the fireplace
+ * lights and puts out the fire sound, and the clock starts and stops its ticking.
  * Moodist's store (src/stores/sound.ts) and its sound hook (src/hooks/use-sound.ts) are what this follows: a sound
  * is selected or not, each has its own volume and can swell slowly, one Play plays every selected sound, and
  * selecting a sound starts playing. Its fades (250 ms), its swell (a 10 s cycle down to 40%), its shuffle (four
@@ -31,6 +35,33 @@
   });
   var master = LampStore.load('master', 1);
   var presets = LampStore.load('presets', []);
+
+  // The room: the window open (0 to 1), where the armchair is between the window (0) and the fire (1), the lamp.
+  var savedHouse = LampStore.load('house', null);
+  var house = {
+    window: savedHouse && typeof savedHouse.window === 'number' ? savedHouse.window : 0,
+    chair: savedHouse && typeof savedHouse.chair === 'number' ? savedHouse.chair : 0.45,
+    lamp: savedHouse ? savedHouse.lamp !== false : true
+  };
+  // The first evening in the house: rain, the fire and the clock, unless a mix was already on.
+  if (!savedHouse && !all.some(function (s) { return state[s.id].selected; })) {
+    state.rain.selected = true; state.rain.volume = 0.6;
+    state.campfire.selected = true; state.campfire.volume = 0.75;
+    state.clock.selected = true; state.clock.volume = 0.5;
+  }
+  function saveHouse() { LampStore.save(house, 'house'); }
+  if (!savedHouse) { saveHouse(); LampStore.save(state, 'sounds'); }
+
+  // Sounds from outside: louder and clearer with the window open.
+  var OUTSIDE = { 'rain': 1, 'thunderstorm': 1, 'thunder': 1, 'river': 1, 'stream': 1, 'waves': 1, 'wind': 1, 'birds': 1,
+    'crickets': 1, 'cicadas': 1, 'wind-chimes': 1, 'train': 1 };
+  function roomFactor(id) {
+    if (OUTSIDE[id]) return 0.38 + 0.62 * house.window;
+    if (id === 'campfire') return 0.3 + 0.7 * house.chair;
+    if (id === 'clock') return 0.55 + 0.45 * house.chair;
+    return 1;
+  }
+  function roomFilter(id) { return OUTSIDE[id] ? 700 + Math.pow(house.window, 2) * 17000 : 20000; }
   var playing = false;
   var history = null;            // the mix as it was before Clear, for Undo
   function save() { LampStore.save(state, 'sounds'); }
@@ -101,10 +132,25 @@
   }
 
   function level(id) {
-    var s = state[id];
-    if (!s.oscillating) return s.volume;
+    var s = state[id], room = roomFactor(id);
+    if (!s.oscillating) return s.volume * room;
     var phase = (context.currentTime / SWELL_PERIOD) * 2 * Math.PI;
-    return s.volume * (SWELL_LOW + (1 - SWELL_LOW) * (1 + Math.cos(phase)) / 2);
+    return s.volume * room * (SWELL_LOW + (1 - SWELL_LOW) * (1 + Math.cos(phase)) / 2);
+  }
+
+  // The room changed: every voice eases to its new level and its filter opens or closes.
+  function reshape(seconds) {
+    if (!context) return;
+    for (var id in voices) {
+      if (!voices.hasOwnProperty(id)) continue;
+      var voice = voices[id];
+      if (voice.stopping) continue;
+      ramp(voice.gain, level(id), seconds);
+      var f = voice.filter.frequency, now = context.currentTime;
+      f.cancelScheduledValues(now);
+      f.setValueAtTime(f.value, now);
+      f.exponentialRampToValueAtTime(roomFilter(id), now + seconds);
+    }
   }
 
   function ramp(gain, to, seconds) {
@@ -123,12 +169,16 @@
       var current = voices[sound.id];
       if (current && !current.stopping) return;
       if (current) finish(current);
-      var ctx = audio(), gain = ctx.createGain(), node = source(sound, buffer);
+      var ctx = audio(), gain = ctx.createGain(), filter = ctx.createBiquadFilter(), node = source(sound, buffer);
+      filter.type = 'lowpass';
+      filter.frequency.value = roomFilter(sound.id);
+      filter.Q.value = 0.5;
       gain.gain.value = 0;
+      filter.connect(gain);
       gain.connect(masterGain);
-      node.connect(gain);
+      node.connect(filter);
       if (node.startAt !== undefined) node.start(0, node.startAt); else node.start();
-      voices[sound.id] = { node: node, gain: gain, stopping: false };
+      voices[sound.id] = { node: node, gain: gain, filter: filter, stopping: false };
       ramp(gain, level(sound.id), FADE);
     }, function (error) {
       notify(error.message);
@@ -138,6 +188,7 @@
   function finish(voice) {
     try { voice.node.stop(); } catch (e) {}
     voice.gain.disconnect();
+    voice.filter.disconnect();
   }
 
   function stop(id, seconds) {
@@ -240,6 +291,134 @@
     sync();
   }
 
+  // MARK: The room
+
+  var asleep = false;      // the sleep timer ended: the house is dark until something is touched
+
+  function comeIn() {
+    asleep = false;
+    if (!playing && selectedIds().length) { playing = true; audio(); sync(); }
+    else audio();
+    welcomeGone();
+  }
+
+  function turnOn(id, volume) {
+    var s = state[id];
+    if (!s.selected) { s.selected = true; if (volume) s.volume = volume; history = null; }
+  }
+
+  var SPOTS = {
+    window: function () { return house.window > 0.5 ? 'Close the window' : 'Open the window'; },
+    fire: function () { return state.campfire.selected ? 'Let the fire go out' : 'Light the fire'; },
+    clock: function () { return state.clock.selected ? 'Stop the clock' : 'Start the clock'; },
+    lamp: function () { return house.lamp ? 'Turn off the lamp' : 'Turn on the lamp'; },
+    chair: function () { return house.chair < 0.5 ? 'Move closer to the fire' : 'Move back by the window'; }
+  };
+  var SHORT = { window: 'Window', fire: 'Fire', clock: 'Clock', lamp: 'Lamp', chair: 'Chair' };
+  function spotOn(name) {
+    if (name === 'window') return house.window > 0.5;
+    if (name === 'fire') return state.campfire.selected;
+    if (name === 'clock') return state.clock.selected;
+    if (name === 'lamp') return house.lamp;
+    return true;
+  }
+
+  function touch(name, value) {
+    comeIn();
+    if (name === 'window') {
+      house.window = house.window > 0.5 ? 0 : 1;
+      // Opening onto a quiet night lets the rain in.
+      if (house.window && !selectedIds().some(function (id) { return OUTSIDE[id]; })) turnOn('rain', 0.6);
+      notify(house.window ? 'The window is open. The rain comes in.' : 'The window is shut. The rain is softer.');
+    } else if (name === 'fire') {
+      if (state.campfire.selected) { state.campfire.selected = false; }
+      else turnOn('campfire', 0.75);
+    } else if (name === 'clock') {
+      if (state.clock.selected) state.clock.selected = false;
+      else turnOn('clock', 0.5);
+    } else if (name === 'lamp') {
+      house.lamp = !house.lamp;
+    } else if (name === 'chair') {
+      house.chair = house.chair < 0.5 ? 1 : 0;
+    } else if (name === 'chair-to') {
+      house.chair = Math.max(0, Math.min(1, value));
+    }
+    if (selectedIds().length) playing = true; else playing = false;
+    save();
+    saveHouse();
+    sync();
+    reshape(name === 'window' ? 1.4 : 1);
+  }
+
+  var hotspots = {};
+  function buildHotspots() {
+    var layer = $('#hotspots');
+    Object.keys(SPOTS).forEach(function (name) {
+      var button = el('button', { type: 'button', class: 'spot', 'data-spot': name, onclick: function () { touch(name); } }, [
+        el('span', { class: 'dot', 'aria-hidden': 'true' }), el('span', { class: 'spot-label' }),
+        el('span', { class: 'spot-short', 'aria-hidden': 'true', text: SHORT[name] })
+      ]);
+      layer.appendChild(button);
+      hotspots[name] = button;
+    });
+  }
+  function renderHotspots() {
+    for (var name in hotspots) {
+      if (!hotspots.hasOwnProperty(name)) continue;
+      var label = SPOTS[name]();
+      hotspots[name].querySelector('.spot-label').textContent = label;
+      hotspots[name].setAttribute('aria-label', label);
+      hotspots[name].classList.toggle('off', !spotOn(name));
+    }
+  }
+
+  function welcomeGone() {
+    var w = $('#welcome');
+    if (!w || w.classList.contains('gone')) return;
+    var hadFocus = document.activeElement === $('#come-in');
+    w.classList.add('gone');
+    $('#come-in').disabled = true;
+    if (hadFocus) Lamp.focus(hotspots.window || '#play');
+  }
+
+  function describe() {
+    var count = selectedIds().length;
+    if (asleep) return 'The house is asleep. Touch anything to wake it.';
+    if (!count) return 'All quiet. Touch the window, the fire or the clock.';
+    if (!playing) return 'Quiet for now. Touch anything in the room to begin.';
+    var bits = [];
+    var outside = selectedIds().some(function (id) { return OUTSIDE[id]; });
+    if (outside) bits.push(house.window > 0.5 ? 'Window open' : 'Window shut');
+    bits.push(house.chair > 0.66 ? 'sitting by the fire' : house.chair < 0.33 ? 'sitting by the window' : 'sitting in the middle');
+    bits.push(state.clock.selected ? 'the clock ticking' : 'the clock still');
+    var others = selectedIds().filter(function (id) { return id !== 'rain' && id !== 'campfire' && id !== 'clock'; }).length;
+    var text = bits.join(', ');
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    return text + (others ? ' · ' + others + ' more ' + (others === 1 ? 'sound' : 'sounds') : '');
+  }
+
+  // What the room should show now, read by house.js each frame.
+  function sleepDim() {
+    if (asleep) return 1;
+    if (!sleep.endsAt) return 0;
+    var left = (sleep.endsAt - Date.now()) / 1000;
+    return left < 120 ? 1 - Math.max(0, left) / 120 : 0;
+  }
+  var view = { window: 0, chair: 0, lamp: true, fire: false, clock: false, rain: false, dim: 0 };
+  window.HouseApp = {
+    view: function () {
+      view.window = house.window;
+      view.chair = house.chair;
+      view.lamp = house.lamp;
+      view.fire = state.campfire.selected && !asleep;
+      view.clock = state.clock.selected && playing;
+      view.rain = state.rain.selected || state.thunderstorm.selected || state['rain-on-window'].selected;
+      view.dim = sleepDim();
+      return view;
+    },
+    touch: touch
+  };
+
   function currentMix() {
     var mix = {};
     selectedIds().forEach(function (id) { mix[id] = Math.round(state[id].volume * 100) / 100; });
@@ -269,6 +448,7 @@
     if (sleep.endsAt && Date.now() >= sleep.endsAt) {
       cancelSleep();
       playing = false;
+      asleep = true;
       sync(SLEEP_FADE);
       notify('Sleep timer ended. Goodnight.');
       return;
@@ -376,9 +556,11 @@
     play.setAttribute('aria-label', playing ? 'Pause' : 'Play');
     play.classList.toggle('on', playing);
     play.disabled = !count;
-    $('#now').textContent = count ? count + (count === 1 ? ' sound' : ' sounds') + (playing ? ' playing' : ' paused') : 'Pick a few sounds to fill the room.';
+    $('#now').textContent = describe();
     $('#clear').disabled = !count;
     document.body.classList.toggle('playing', playing);
+    if (playing) welcomeGone();
+    renderHotspots();
   }
 
   function renderSleep() {
@@ -422,6 +604,7 @@
     panel.hidden = false;
     openPanel = panel;
     Lamp.scope = panel;
+    document.body.classList.add('panel-open');
     if (id === 'presets-panel') renderPresets();
     if (id === 'mix-panel') { $('#mix-code').value = JSON.stringify(currentMix()); $('#mix-import').value = ''; $('#mix-said').textContent = ''; }
     if (id === 'sleep-panel') renderSleep();
@@ -435,6 +618,7 @@
     $('#veil').hidden = true;
     openPanel = null;
     Lamp.scope = null;
+    document.body.classList.remove('panel-open');
     if (returnFocus && returnFocus.focus) returnFocus.focus();
     return true;
   }
@@ -535,9 +719,11 @@
   // MARK: Start
 
   document.addEventListener('DOMContentLoaded', function () {
+    buildHotspots();
     build();
     buildCredits();
-    $('#play').addEventListener('click', function () { setPlaying(!playing); });
+    $('#play').addEventListener('click', function () { asleep = false; setPlaying(!playing); });
+    $('#come-in').addEventListener('click', function () { comeIn(); render(); });
     $('#shuffle').addEventListener('click', shuffle);
     $('#clear').addEventListener('click', clear);
     $('#master').value = String(master);
@@ -564,14 +750,14 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { if (close()) e.preventDefault(); return; }
       var typingNow = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
-      if (e.key === ' ' && !typingNow && !openPanel && !(e.target.classList && e.target.classList.contains('tile'))) { e.preventDefault(); setPlaying(!playing); }
+      if (e.key === ' ' && !typingNow && !openPanel && !(e.target.classList && e.target.classList.contains('tile')) && e.target.tagName !== 'BUTTON') { e.preventDefault(); setPlaying(!playing); }
     });
     // A device that holds sound back until a press: let the first press anywhere wake it.
     document.addEventListener('pointerdown', function () { if (context && context.state !== 'running') context.resume(); });
     render();
     renderSleep();
     // Nothing plays by itself when the room opens: sound starts with a press, as browsers ask.
-    Lamp.focus('#play');
+    Lamp.focus('#come-in');
   });
 
   // For whoever looks at the room from outside (Lamp's preview): what's selected and whether it's playing.

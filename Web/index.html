@@ -3,44 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>My Quiet Room</title>
+<title>The Little House</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="glow" aria-hidden="true"></div>
-<header class="bar">
-  <div class="title">
-    <h1>My Quiet Room</h1>
-    <p id="now" class="now">Pick a few sounds to fill the room.</p>
-  </div>
-  <div class="transport">
-    <button id="play" class="play" type="button">Play</button>
-    <label class="master"><span>Volume</span><input id="master" type="range" min="0" max="1" step="0.01" aria-label="Overall volume"></label>
-  </div>
-  <nav class="tools" aria-label="Tools">
-    <button id="shuffle" type="button">Shuffle</button>
-    <button id="clear" type="button">Clear</button>
-    <button type="button" data-open="presets-panel">Presets</button>
-    <button type="button" data-open="sleep-panel">Sleep Timer</button>
-    <button type="button" data-open="mix-panel">Mix Code</button>
-    <button type="button" data-open="credits-panel">Credits</button>
-    <span id="sleep-left" class="badge" hidden></span>
-  </nav>
+<canvas id="room" class="room" aria-label="The little house, a cozy room at night"></canvas>
+<div id="hotspots" class="hotspots"></div>
+
+<header class="title-card">
+  <h1>The Little House</h1>
+  <p id="now" class="now">Touch the window, the fire or the clock.</p>
+  <span id="sleep-left" class="badge" hidden></span>
 </header>
 
-<main id="sounds" class="sounds"></main>
+<div id="welcome" class="welcome">
+  <button id="come-in" class="come-in" type="button">Come in</button>
+  <p class="note">Rain outside, a fire, a clock ticking.</p>
+</div>
 
-<footer class="foot">
-  Based on <a href="https://github.com/remvze/moodist" target="_blank" rel="noopener">Moodist</a> by remvze.
-  Who made each sound is under Credits.
+<footer class="bar">
+  <button id="play" class="play" type="button">Play</button>
+  <label class="master"><span>Volume</span><input id="master" type="range" min="0" max="1" step="0.01" aria-label="Overall volume"></label>
+  <button type="button" data-open="mixer-panel">Mixer</button>
+  <button type="button" data-open="sleep-panel">Sleep Timer</button>
+  <button type="button" data-open="presets-panel">Presets</button>
+  <button type="button" data-open="credits-panel">Credits</button>
 </footer>
 
 <div id="veil" class="veil" hidden></div>
 
+<section id="mixer-panel" class="panel drawer" role="dialog" aria-modal="true" aria-labelledby="mixer-title" hidden>
+  <div class="panel-head">
+    <h2 id="mixer-title">Mixer</h2>
+    <div class="head-tools">
+      <button id="shuffle" type="button">Shuffle</button>
+      <button id="clear" type="button">Clear</button>
+      <button type="button" data-open="mix-panel">Mix Code</button>
+      <button class="close" type="button" aria-label="Close">✕</button>
+    </div>
+  </div>
+  <p class="note">The rain, the fire and the clock follow the room: open the window, sit nearer the fire, stop the clock.</p>
+  <div id="sounds" class="sounds"></div>
+</section>
+
 <section id="presets-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="presets-title" hidden>
   <div class="panel-head"><h2 id="presets-title">Presets</h2><button class="close" type="button" aria-label="Close">✕</button></div>
   <form id="preset-form" class="row">
-    <input id="preset-name" type="text" placeholder="Name this mix" aria-label="Preset name" maxlength="60" required>
+    <input id="preset-name" type="text" placeholder="Name this evening" aria-label="Preset name" maxlength="60" required>
     <button id="preset-save" type="submit">Save</button>
   </form>
   <div id="preset-list" class="preset-list"></div>
@@ -48,10 +57,10 @@
 
 <section id="sleep-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="sleep-title" hidden>
   <div class="panel-head"><h2 id="sleep-title">Sleep Timer</h2><button class="close" type="button" aria-label="Close">✕</button></div>
-  <p class="note">Stop the sounds after a while, fading out gently.</p>
+  <p class="note">Let the house go quiet after a while: the lamp dims at the end, then the sounds fade out.</p>
   <form id="sleep-form" class="row">
     <label class="field"><span>Hours</span><input id="sleep-hours" type="number" min="0" max="23" value="0"></label>
-    <label class="field"><span>Minutes</span><input id="sleep-minutes" type="number" min="0" max="59" value="10"></label>
+    <label class="field"><span>Minutes</span><input id="sleep-minutes" type="number" min="0" max="59" value="30"></label>
     <button type="submit" class="primary">Start</button>
   </form>
   <div id="sleep-running" class="sleep-running" hidden>
@@ -62,7 +71,7 @@
 
 <section id="mix-panel" class="panel" role="dialog" aria-modal="true" aria-labelledby="mix-title" hidden>
   <div class="panel-head"><h2 id="mix-title">Mix Code</h2><button class="close" type="button" aria-label="Close">✕</button></div>
-  <p class="note">Copy this code and send it to someone with My Quiet Room, or paste theirs below.</p>
+  <p class="note">Copy this code and send it to someone, or paste theirs below.</p>
   <div class="row">
     <input id="mix-code" type="text" readonly aria-label="Your mix code">
     <button id="mix-copy" type="button">Copy</button>
@@ -76,8 +85,15 @@
 
 <section id="credits-panel" class="panel wide" role="dialog" aria-modal="true" aria-labelledby="credits-title" hidden>
   <div class="panel-head"><h2 id="credits-title">Credits</h2><button class="close" type="button" aria-label="Close">✕</button></div>
-  <p>Based on <a href="https://github.com/remvze/moodist" target="_blank" rel="noopener">Moodist</a> by remvze (MIT).
-    Its mixer, presets, sleep timer and binaural beats are adapted here; its recordings aren’t used.</p>
+  <p>The room, its furniture and sliding window are from Kenney’s
+    <a href="https://kenney.nl/assets/furniture-kit" target="_blank" rel="noopener">Furniture Kit</a>; the trees and logs
+    from Kenney’s <a href="https://kenney.nl/assets/nature-kit" target="_blank" rel="noopener">Nature Kit</a>; the rain and
+    flames from Kenney’s <a href="https://kenney.nl/assets/particle-pack" target="_blank" rel="noopener">Particle Pack</a>.
+    The <a href="https://poly.pizza/m/nzxZYIOCIr" target="_blank" rel="noopener">Fireplace</a> is by Quaternius and the
+    <a href="https://poly.pizza/m/09YKIkFZnA" target="_blank" rel="noopener">Grandfathers Clock</a> by CreativeTrio.
+    All CC0. Drawn with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT).</p>
+  <p>The mixer, presets, sleep timer and binaural beats are adapted from
+    <a href="https://github.com/remvze/moodist" target="_blank" rel="noopener">Moodist</a> by remvze (MIT); its recordings aren’t used.</p>
   <p class="note">Noises and binaural beats are made as they play. Every recording is CC0 or public domain, given away by
     the person who made it:</p>
   <ul id="credit-list" class="credit-list"></ul>
@@ -89,5 +105,7 @@
 <script src="sounds.js"></script>
 <script src="generators.js"></script>
 <script src="app.js"></script>
+<script type="importmap">{ "imports": { "three": "./three/three.module.js", "three/addons/": "./three/addons/" } }</script>
+<script type="module" src="house.js"></script>
 </body>
 </html>
