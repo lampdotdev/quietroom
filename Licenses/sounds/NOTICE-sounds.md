@@ -1,4 +1,4 @@
-# Where My Quiet Room's sounds come from
+# Where The Little House's sounds come from
 
 Every recording in WebApp/Web/sounds/ is a CC0 1.0 sound from Freesound (LICENSE-CC0-1.0.txt), credited in
 credits.json. None of Moodist's own recordings are used: Moodist's README puts them under the Pixabay Content License

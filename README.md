@@ -1,12 +1,12 @@
 <p align="center"><img src=".github/icon/icon.png" width="128" height="128" alt=""></p>
 
-<h1 align="center">My Quiet Room</h1>
+<h1 align="center">The Little House</h1>
 
-<p align="center">A quiet room of rain, waves, birds and noise you mix yourself, with a sleep timer.</p>
+<p align="center">A cozy little room on a rainy night, with a fire and a ticking clock to listen to.</p>
 
 <p align="center"><a href="#remix-it-with-lamp">Remix it with Lamp</a></p>
 
-<p align="center"><img src=".github/preview.png" width="720" alt="My Quiet Room"></p>
+<p align="center"><img src=".github/preview.png" width="720" alt="The Little House"></p>
 
 ## Make the room yours
 
@@ -45,6 +45,12 @@ Lamp builds this kind of app: it needs Xcode and signing on your Mac, which Lamp
 - Uses [small clock in room](https://freesound.org/people/Yuval/sounds/211192/) by Yuval, CC0-1.0 (license: `Licenses/sounds/LICENSE-CC0-1.0.txt`)
 - Uses [typing](https://freesound.org/people/Rodzuz/sounds/393902/) by Rodzuz, CC0-1.0 (license: `Licenses/sounds/LICENSE-CC0-1.0.txt`)
 - Uses [Wind chimes 1](https://freesound.org/people/giddster/sounds/437337/) by giddster, CC0-1.0 (license: `Licenses/sounds/LICENSE-CC0-1.0.txt`)
+- Uses [three.js](https://github.com/mrdoob/three.js) by three.js authors, MIT, at commit `fae873455dff` (license: `Licenses/three/LICENSE`)
+- Uses [Furniture Kit](https://kenney.nl/assets/furniture-kit) by Kenney, CC0-1.0 (license: `Licenses/kenney/License-furniture-kit.txt`)
+- Uses [Nature Kit](https://kenney.nl/assets/nature-kit) by Kenney, CC0-1.0 (license: `Licenses/kenney/License-nature-kit.txt`)
+- Uses [Particle Pack](https://kenney.nl/assets/particle-pack) by Kenney, CC0-1.0 (license: `Licenses/kenney/License-particle-pack.txt`)
+- Uses [Fireplace](https://poly.pizza/m/nzxZYIOCIr) by Quaternius, CC0-1.0 (license: `Licenses/models/LICENSE-CC0-1.0.txt`)
+- Uses [Grandfathers Clock](https://poly.pizza/m/09YKIkFZnA) by CreativeTrio, CC0-1.0 (license: `Licenses/models/LICENSE-CC0-1.0.txt`)
 
 ## License
 

@@ -14,7 +14,7 @@ import UIKit
 @main
 struct LampWebApp: SwiftUI.App {
     var body: some SwiftUI.Scene {
-        WindowGroup("My Quiet Room") {
+        WindowGroup("The Little House") {
             LampWebAppView()
                 .ignoresSafeArea()
                 #if os(macOS)
