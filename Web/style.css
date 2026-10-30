@@ -48,6 +48,28 @@ a { color: var(--warm); }
 h1 { font-family: "Iowan Old Style", "Palatino", Georgia, serif; font-size: calc(var(--u) * 5.4); font-weight: 600; margin: 0; letter-spacing: 0.01em; }
 .now { color: var(--muted); margin: calc(var(--u) * 0.4) 0 0; font-size: calc(var(--u) * 2.3); max-width: 60vw; }
 
+/* The places, top right; a soft dark passes over the screen on the way from one to the next. */
+.places {
+  position: fixed; top: calc(var(--u) * 3); right: calc(var(--u) * 4); z-index: 5;
+  display: flex; gap: calc(var(--u) * 0.6); padding: calc(var(--u) * 0.7);
+  background: var(--glass); border: 1px solid var(--line); border-radius: 999px;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.places button { border-radius: 999px; background: transparent; border-color: transparent; padding: calc(var(--u) * 0.8) calc(var(--u) * 1.8); }
+.places button:hover { background: rgba(255, 220, 170, 0.08); }
+.places button[aria-pressed="true"] { background: var(--warm-dim); border-color: var(--warm); color: var(--warm); }
+.fade { position: fixed; inset: 0; z-index: 1; background: #06080c; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+.fade.on { opacity: 1; }
+body.moving .spot { opacity: 0; pointer-events: none; }
+
+/* The bright places: the title sits on glass, so it reads against a sunset or a morning sky. */
+body.outdoors .title-card {
+  top: calc(var(--u) * 3); left: calc(var(--u) * 3); padding: calc(var(--u) * 1.4) calc(var(--u) * 2.6);
+  background: var(--glass); border: 1px solid var(--line); border-radius: calc(var(--u) * 2.4);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+body.outdoors h1 { font-size: calc(var(--u) * 3.6); }
+
 /* What can be touched in the room: a small chip over each thing. */
 .hotspots { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
 .spot {
@@ -177,6 +199,7 @@ input[type="text"], input[type="number"] {
   .title-card { top: calc(var(--u) * 3); left: calc(var(--u) * 3); }
   h1 { font-size: calc(var(--u) * 4.6); }
   .now { max-width: 90vw; }
+  .places { top: calc(var(--u) * 15); right: auto; left: 50%; transform: translateX(-50%); max-width: 94vw; }
   .welcome { bottom: calc(var(--u) * 30); }
   .spot { font-size: calc(var(--u) * 2.6); }
   .bar { border-radius: calc(var(--u) * 2.4); bottom: calc(var(--u) * 2); }

@@ -45,15 +45,13 @@ export class Weather {
       const s = new THREE.Sprite(m);
       s.renderOrder = 5;
       s.center.set(0.5, 0.1);
-      s.position.set(hearth.x + dx, hearth.y + 0.02, hearth.z + 0.1 + dz);
-      s.userData = { h, w: h * 0.9, phase: Math.random() * 10, frame: i, spot: 'fire' };
+      s.userData = { h, w: h * 0.9, phase: Math.random() * 10, frame: i, spot: 'fire', dx, dz };
       s.raycast = () => {};
       scene.add(s);
       this.flames.push(s);
     });
     this.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex('light_01'), color: '#ff8a3a', transparent: true,
       opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-    this.glow.position.set(hearth.x, hearth.y + 0.22, hearth.z + 0.32);
     this.glow.scale.set(1.2, 1.0, 1);
     this.glow.raycast = () => {};
     scene.add(this.glow);
@@ -72,10 +70,21 @@ export class Weather {
     this.flameClock = 0;
   }
 
+  // Another place: the fire is somewhere else, and outdoors the rain falls everywhere.
+  moveTo(hearth, open) {
+    this.hearth = hearth;
+    this.open = open;
+    this.flames.forEach(s => s.position.set(hearth.x + s.userData.dx, hearth.y + 0.02, hearth.z + 0.1 + s.userData.dz));
+    this.glow.position.set(hearth.x, hearth.y + 0.22, hearth.z + 0.32);
+    const p = this.rain.geometry.attributes.position.array;
+    for (let i = 0; i < DROPS; i++) this.respawn(p, i, Math.random() * 7);
+    this.rain.geometry.attributes.position.needsUpdate = true;
+  }
+
   respawn(p, i, y) {
     let x, z;
     // Never over the room (x and z above -2), with a margin so no streak reaches over a wall.
-    do { x = -8 + Math.random() * 13; z = -8 + Math.random() * 13; } while (x > -2.35 && z > -2.35);
+    do { x = -8 + Math.random() * 13; z = -8 + Math.random() * 13; } while (!this.open && x > -2.35 && z > -2.35);
     p[i * 3] = x; p[i * 3 + 1] = y; p[i * 3 + 2] = z;
   }
 

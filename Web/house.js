@@ -1,6 +1,7 @@
 /* The Little House: a miniature room at night, drawn with three.js from CC0 models (Kenney's Furniture and Nature
  * Kits, Quaternius' Fireplace, CreativeTrio's Grandfathers Clock). The room is a cut-away diorama on a little island
- * of grass in the rain. app.js owns what's on (HouseApp.view()); this file draws it, moves toward it smoothly, and
+ * of grass in the rain. The other places (outside.js) stand beside it, one shown at a time: `moods` here says how each
+ * is lit and looked at. app.js owns what's on (HouseApp.view()); this file draws it, moves toward it smoothly, and
  * tells app.js what was touched (HouseApp.touch(name, value)).
  *
  * Room coordinates: the floor is x -2..2, z -2..2, y up. The back wall stands at z = -2 (the fireplace and the clock),
@@ -9,6 +10,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { buildPlaces } from './outside.js';
 
 const canvas = document.getElementById('room');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -24,6 +26,15 @@ const scene = new THREE.Scene();
 scene.background = NIGHT;
 scene.fog = new THREE.Fog(NIGHT, 11, 22);
 
+// One group for each place. The outdoor ones are turned so their -z runs straight away from the camera.
+const stages = {};
+PLACE_ORDER.forEach(id => {
+  stages[id] = new THREE.Group();
+  stages[id].visible = false;
+  if (id !== 'room') stages[id].rotation.y = Math.PI / 4;
+  scene.add(stages[id]);
+});
+
 const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 60);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
@@ -36,8 +47,6 @@ controls.minAzimuthAngle = 0.05;
 controls.maxAzimuthAngle = 1.45;
 controls.minDistance = 4.5;
 controls.maxDistance = 13;
-const LOOK = new THREE.Vector3(-0.3, 0.35, -0.5);
-controls.target.copy(LOOK);
 
 // MARK: Materials, one per name so every model shares the room's palette
 
@@ -97,7 +106,7 @@ function fit(object, { height, width }) {
 function place(group, x, y, z, turn) {
   group.position.set(x, y, z);
   group.rotation.y = turn || 0;
-  scene.add(group);
+  stages.room.add(group);
   return group;
 }
 
@@ -127,12 +136,29 @@ scene.add(lampLight);
 const fireLight = new THREE.PointLight('#ff7a2e', 0, 6, 1.6);
 scene.add(fireLight);
 
+// How each place is lit, and where the camera looks from. `dir` is in the place's own turned coordinates for outdoors.
+const moods = {
+  room: { fog: ['#0b1016', 3, 15], exposure: 1.25, hemi: ['#7f8fbf', '#3a2a1c', 1.3], fill: 1.4,
+    sun: ['#8fa6d8', 1.1, [-6, 8, -5]], look: [-0.3, 0.35, -0.5], dir: [0.62, 0.48, 0.62], back: 1, polar: [0.55, 1.25], background: NIGHT },
+  beach: { fog: ['#ffb46b', 16, 42], exposure: 1.0, hemi: ['#ffd6b8', '#c08a6a', 1.7], fill: 0,
+    sun: ['#ffb37a', 2.3, [0.6, 2.4, -12]], shadow: true, look: [0, 1.25, -1], dir: [0, 0.14, 1], back: 1.32, polar: [0.9, 1.5] },
+  forest: { fog: ['#d8dfae', 9, 34], exposure: 1.05, hemi: ['#f4f0c8', '#51703c', 2.0], fill: 0,
+    sun: ['#fff0c8', 2.1, [-4.5, 10, -8]], shadow: true, look: [0, 1.25, -1.2], dir: [0, 0.2, 1], back: 1.28, polar: [0.9, 1.5] },
+  lake: { fog: ['#26335c', 14, 44], exposure: 1.15, hemi: ['#7488c8', '#2a3648', 2.4], fill: 0,
+    sun: ['#b4c5f4', 1.8, [-3, 6, -9]], shadow: true, look: [0, 1.1, -0.8], dir: [0, 0.15, 1], back: 1.28, polar: [0.9, 1.5] }
+};
+
 // MARK: The room
 
 const anchors = {};        // where each touchable thing's chip sits, in the room
-const parts = {};          // the moving parts: the window's pane, the chair, the lamp's shade
+const parts = {};          // the moving parts: the window's pane, the lamp's shade
 const CHAIR_WINDOW = { x: -1.1, z: 0.5, turn: -Math.PI / 2 };    // facing the window
 const CHAIR_FIRE = { x: 0.05, z: -0.62, turn: Math.PI + 0.25 };    // facing the fireplace
+// Each place: its group, where its chips sit, the chair's way through it, its fire, and what counts as its floor.
+const sets = { room: { group: stages.room, anchors, path: { from: CHAIR_WINDOW, to: CHAIR_FIRE },
+  floor: (p, h) => Math.abs(p.y - 0.05) < 0.08 && Math.abs(p.x) < 2 && Math.abs(p.z) < 2 } };
+const moteTexture = new THREE.TextureLoader().load('textures/circle_05.png');
+let current = 'room';
 
 // An invisible roof at the walls' height: drawn after the room and before the rain, it hides every raindrop seen
 // through the open top of the room, so the rain behind the house never streaks across the inside walls and floor.
@@ -143,7 +169,7 @@ function buildShelter() {
   roof.position.set(-0.03, 1.29, -0.03);
   roof.renderOrder = 1;
   roof.raycast = () => {};
-  scene.add(roof);
+  stages.room.add(roof);
 }
 
 async function buildRoom() {
@@ -213,8 +239,9 @@ async function buildRoom() {
   const chairGroup = place(chair, CHAIR_WINDOW.x, 0.05, CHAIR_WINDOW.z, CHAIR_WINDOW.turn);
   model('pillow').then(p => { const g = fit(p, { width: 0.2 }); g.position.set(0, 0.2, 0.12); g.rotation.x = -0.4; chairGroup.add(g); tag(chairGroup, 'chair'); });
   tag(chairGroup, 'chair');
-  parts.chair = chairGroup;
+  sets.room.chair = chairGroup;
   anchors.chair = new THREE.Vector3();
+  sets.room.hearth = parts.hearth;
 }
 
 // MARK: Outside: an island of grass, trees and rocks in the night
@@ -224,7 +251,7 @@ function buildOutside() {
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.005;
   ground.receiveShadow = true;
-  scene.add(ground);
+  stages.room.add(ground);
   const trees = [
     ['tree_pineTallA_detailed', -3.9, -3.3, 1.9], ['tree_oak', -4.1, 1.3, 1.6], ['tree_default', -1.2, -4.0, 1.6],
     ['tree_pineTallB_detailed', 1.4, -4.3, 2.0], ['tree_fat', -5.2, -1.2, 1.7], ['tree_detailed', 3.6, -3.6, 1.6],
@@ -237,6 +264,9 @@ function buildOutside() {
    ['log_large', -3.8, -1.4, 1.4]].forEach(([name, x, z, s], i) => model(name).then(t => { t.scale.setScalar(s); place(t, x, 0, z, i * 2.1); }));
 }
 
+const shown = { pane: 0, chair: 0, lamp: 1, fire: 0, clock: 0 };
+const tmp = new THREE.Vector3();
+
 // MARK: Framing: the whole room in view at any shape of screen
 
 function resize() {
@@ -247,17 +277,64 @@ function resize() {
   camera.fov = aspect >= 1 ? 34 : 40;
   // Far enough back that the room's width (about 6.4 across) fits the screen's width.
   const halfWidth = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect);
-  const distance = Math.max(7.4, 3.0 / Math.tan(halfWidth));
-  scene.fog.near = distance + 3;
-  scene.fog.far = distance + 15;
+  const mood = moods[current];
+  const distance = Math.max(7.4, 3.0 / Math.tan(halfWidth)) * mood.back;
+  scene.fog.near = current === 'room' ? distance + mood.fog[1] : mood.fog[1];
+  scene.fog.far = current === 'room' ? distance + mood.fog[2] : mood.fog[2];
   camera.updateProjectionMatrix();
   const dir = camera.position.clone().sub(controls.target);
-  if (dir.lengthSq() < 0.01) dir.set(0.62, 0.48, 0.62);
+  if (dir.lengthSq() < 0.01) dir.copy(sets[current].group.localToWorld(tmp.fromArray(mood.dir))).sub(sets[current].group.position);
   dir.setLength(distance);
   camera.position.copy(controls.target).add(dir);
   controls.maxDistance = Math.max(13, distance + 3);
 }
 window.addEventListener('resize', resize);
+
+// MARK: Going to a place
+
+function show(id) {
+  stages[current].visible = false;
+  current = id;
+  const mood = moods[id], set = sets[id], group = set.group;
+  group.visible = true;
+  group.updateMatrixWorld(true);
+  scene.background = mood.background || null;
+  scene.fog.color.set(mood.fog[0]);
+  renderer.toneMappingExposure = mood.exposure;
+  hemi.color.set(mood.hemi[0]);
+  hemi.groundColor.set(mood.hemi[1]);
+  warmFill.intensity = mood.fill;
+  lampLight.visible = id === 'room';
+  moon.color.set(mood.sun[0]);
+  moon.position.copy(group.localToWorld(tmp.fromArray(mood.sun[2])));
+  moon.castShadow = !!mood.shadow;
+  controls.minPolarAngle = mood.polar[0];
+  controls.maxPolarAngle = mood.polar[1];
+  controls.target.copy(group.localToWorld(tmp.fromArray(mood.look)));
+  camera.position.copy(controls.target);
+  resize();
+  shown.chair = window.HouseApp ? window.HouseApp.view().chair : shown.chair;
+  shown.fire = window.HouseApp && window.HouseApp.view().fire ? 1 : 0;
+  if (weather) weather.moveTo(hearthOf(set), id !== 'room');
+}
+
+function hearthOf(set) {
+  return set.hearth ? set.group.localToWorld(set.hearth.clone()) : new THREE.Vector3();
+}
+
+const veil = document.getElementById('fade');
+let going = null, goTimer = null;
+function goTo(id) {
+  going = id;
+  veil.classList.add('on');
+  document.body.classList.add('moving');
+  clearTimeout(goTimer);
+  goTimer = setTimeout(() => {
+    show(id);
+    veil.classList.remove('on');
+    document.body.classList.remove('moving');
+  }, 520);
+}
 
 // MARK: Touching things
 
@@ -267,10 +344,10 @@ function hit(event) {
   const r = canvas.getBoundingClientRect();
   pointer.set(((event.clientX - r.left) / r.width) * 2 - 1, -((event.clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(scene.children, true);
+  const hits = raycaster.intersectObject(stages[current], true);
   for (const h of hits) {
     if (!h.object.visible || (h.object.material && h.object.material.depthWrite === false && h.object.userData.spot !== 'window')) continue;
-    return { spot: h.object.userData.spot || null, point: h.point };
+    return { spot: h.object.userData.spot || null, point: h.point, ground: h.object.userData.ground };
   }
   return null;
 }
@@ -285,10 +362,9 @@ canvas.addEventListener('click', e => {
   const h = hit(at);
   if (!h || !window.HouseApp) return;
   if (h.spot) { window.HouseApp.touch(h.spot); return; }
-  // The floor: the chair slides to the nearest place on its way between the window and the fire.
-  if (Math.abs(h.point.y - 0.05) < 0.08 && Math.abs(h.point.x) < 2 && Math.abs(h.point.z) < 2) {
-    window.HouseApp.touch('chair-to', chairPathT(h.point));
-  }
+  // The floor: the chair slides to the nearest place on its way.
+  const set = sets[current], point = set.group.worldToLocal(h.point.clone());
+  if (set.floor(point, h)) window.HouseApp.touch('chair-to', chairPathT(point, set.path));
 });
 canvas.addEventListener('pointermove', e => {
   if (e.buttons) return;
@@ -296,15 +372,13 @@ canvas.addEventListener('pointermove', e => {
   canvas.classList.toggle('pointing', !!(h && h.spot));
 });
 
-function chairPathT(p) {
-  const ax = CHAIR_WINDOW.x, az = CHAIR_WINDOW.z, bx = CHAIR_FIRE.x - ax, bz = CHAIR_FIRE.z - az;
+function chairPathT(p, path) {
+  const ax = path.from.x, az = path.from.z, bx = path.to.x - ax, bz = path.to.z - az;
   return Math.max(0, Math.min(1, ((p.x - ax) * bx + (p.z - az) * bz) / (bx * bx + bz * bz)));
 }
 
 // MARK: Each frame: move toward what's on
 
-const shown = { pane: 0, chair: 0, lamp: 1, fire: 0, clock: 0 };
-const tmp = new THREE.Vector3();
 let weather = null, last = performance.now();
 const ease = (from, to, rate, dt) => from + (to - from) * (1 - Math.exp(-rate * dt));
 function lerpAngle(a, b, t) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * t; }
@@ -313,9 +387,9 @@ function placeSpots() {
   const spots = document.querySelectorAll('[data-spot]');
   const w = window.innerWidth, h = window.innerHeight;
   for (let i = 0; i < spots.length; i++) {
-    const el = spots[i], a = anchors[el.getAttribute('data-spot')];
+    const el = spots[i], a = sets[current].anchors[el.getAttribute('data-spot')];
     if (!a) { el.classList.add('hidden'); continue; }
-    tmp.copy(a).project(camera);
+    sets[current].group.localToWorld(tmp.copy(a)).project(camera);
     const x = (tmp.x + 1) / 2 * w, y = (1 - tmp.y) / 2 * h;
     el.classList.toggle('hidden', tmp.z > 1);
     const half = el.offsetWidth / 2 + 6;
@@ -328,7 +402,9 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000), t = now / 1000;
   last = now;
-  const view = window.HouseApp ? window.HouseApp.view() : { window: 0, chair: 0, lamp: true, fire: true, clock: true, rain: true, dim: 0 };
+  const view = window.HouseApp ? window.HouseApp.view() : { place: 'room', window: 0, chair: 0, lamp: true, fire: true, clock: true, rain: true, dim: 0 };
+  if (view.place !== going) goTo(view.place);
+  const set = sets[current], mood = moods[current];
 
   shown.pane = ease(shown.pane, view.window, 3, dt);
   shown.chair = ease(shown.chair, view.chair, 2.5, dt);
@@ -336,19 +412,28 @@ function frame(now) {
   shown.fire = ease(shown.fire, view.fire ? 1 : 0, 1.6, dt);
 
   if (parts.pane) parts.pane.position.y = parts.paneY + shown.pane * 0.3;
-  if (parts.chair) {
-    const c = shown.chair;
-    parts.chair.position.x = CHAIR_WINDOW.x + (CHAIR_FIRE.x - CHAIR_WINDOW.x) * c;
-    parts.chair.position.z = CHAIR_WINDOW.z + (CHAIR_FIRE.z - CHAIR_WINDOW.z) * c;
-    parts.chair.rotation.y = lerpAngle(CHAIR_WINDOW.turn, CHAIR_FIRE.turn, c);
-    anchors.chair.set(parts.chair.position.x, 0.72, parts.chair.position.z);
+  if (set.chair) {
+    const c = shown.chair, { from, to } = set.path;
+    set.chair.position.set(from.x + (to.x - from.x) * c, 0.05, from.z + (to.z - from.z) * c);
+    set.chair.rotation.y = lerpAngle(from.turn, to.turn, c);
+    set.anchors.chair.set(set.chair.position.x, current === 'room' ? 0.72 : 0.6, set.chair.position.z);
   }
   lampLight.intensity = 3.2 * shown.lamp;
   if (parts.shade) parts.shade.emissive.set('#ffb35c').multiplyScalar(0.9 * shown.lamp);
 
   const flicker = 0.75 + 0.15 * Math.sin(t * 11.3) + 0.1 * Math.sin(t * 23.7 + 1.3) + 0.06 * Math.sin(t * 5.1);
   fireLight.intensity = 4.2 * shown.fire * flicker;
-  if (parts.hearth) fireLight.position.set(parts.hearth.x, 0.45, parts.hearth.z + 0.35);
+  if (set.hearth) {
+    set.group.localToWorld(fireLight.position.copy(set.hearth));
+    fireLight.position.y = 0.45;
+    if (current === 'room') fireLight.position.z += 0.35;
+  }
+
+  // The sleep timer's dusk: outdoors, the whole place darkens with it.
+  const dusk = current === 'room' ? 1 : 1 - (view.dim || 0) * 0.7;
+  hemi.intensity = mood.hemi[2] * dusk;
+  moon.intensity = mood.sun[1] * dusk;
+  if (set.update) set.update(t, dt, view);
 
   if (weather) weather.update(dt, t, { rain: view.rain, fire: shown.fire, window: shown.pane });
 
@@ -357,13 +442,15 @@ function frame(now) {
   placeSpots();
 }
 
-camera.position.set(LOOK.x + 5.1, LOOK.y + 3.9, LOOK.z + 5.1);
-resize();
+Object.assign(sets, buildPlaces({ model, fit, tag, stages, textures: { mote: moteTexture } }));
+going = window.HouseApp ? window.HouseApp.view().place : 'room';
+show(going);
 buildOutside();
 buildRoom().then(() => {
   console.log('The Little House is built.');
   return import('./weather.js').then(m => {
-    weather = new m.Weather(scene, { hearth: parts.hearth });
+    weather = new m.Weather(scene, { hearth: hearthOf(sets[current]) });
+    weather.moveTo(hearthOf(sets[current]), current !== 'room');
   }, e => console.error('weather', e));
 }, error => console.error('The room couldn’t be built:', error));
 requestAnimationFrame(frame);

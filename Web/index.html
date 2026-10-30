@@ -10,6 +10,10 @@
 <canvas id="room" class="room" aria-label="The little house, a cozy room at night"></canvas>
 <div id="hotspots" class="hotspots"></div>
 
+<div id="fade" class="fade" aria-hidden="true"></div>
+
+<nav id="places" class="places" aria-label="Places"></nav>
+
 <header class="title-card">
   <h1>The Little House</h1>
   <p id="now" class="now">Touch the window, the fire or the clock.</p>
@@ -18,7 +22,7 @@
 
 <div id="welcome" class="welcome">
   <button id="come-in" class="come-in" type="button">Come in</button>
-  <p class="note">Rain outside, a fire, a clock ticking.</p>
+  <p id="welcome-note" class="note"></p>
 </div>
 
 <footer class="bar">
@@ -42,7 +46,7 @@
       <button class="close" type="button" aria-label="Close">✕</button>
     </div>
   </div>
-  <p class="note">The rain, the fire and the clock follow the room: open the window, sit nearer the fire, stop the clock.</p>
+  <p id="mixer-note" class="note"></p>
   <div id="sounds" class="sounds"></div>
 </section>
 
@@ -91,7 +95,7 @@
     flames from Kenney’s <a href="https://kenney.nl/assets/particle-pack" target="_blank" rel="noopener">Particle Pack</a>.
     The <a href="https://poly.pizza/m/nzxZYIOCIr" target="_blank" rel="noopener">Fireplace</a> is by Quaternius and the
     <a href="https://poly.pizza/m/09YKIkFZnA" target="_blank" rel="noopener">Grandfathers Clock</a> by CreativeTrio.
-    All CC0. Drawn with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT).</p>
+    All CC0. The sky, the water, the palms, the tent and the chimes are drawn in code. Drawn with <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> (MIT).</p>
   <p>The mixer, presets, sleep timer and binaural beats are adapted from
     <a href="https://github.com/remvze/moodist" target="_blank" rel="noopener">Moodist</a> by remvze (MIT); its recordings aren’t used.</p>
   <p class="note">Noises and binaural beats are made as they play. Every recording is CC0 or public domain, given away by
@@ -103,6 +107,7 @@
 
 <script src="lamp.js"></script>
 <script src="sounds.js"></script>
+<script src="places.js"></script>
 <script src="generators.js"></script>
 <script src="app.js"></script>
 <script type="importmap">{ "imports": { "three": "./three/three.module.js", "three/addons/": "./three/addons/" } }</script>

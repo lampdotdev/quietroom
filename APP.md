@@ -3,7 +3,8 @@
 A cozy miniature 3D room on a rainy night, and the sounds are mixed by touching things in it: open the sliding window
 to let more rain in, move the armchair nearer the fire, light or put out the fire, stop or start the grandfather
 clock, turn the lamp on and off. Around the room: Play/Pause, an overall volume, the full Mixer (every sound, as
-before), the Sleep Timer, Presets, Mix Code and Credits. A web app: a page in Web/ shown full screen in its own window
+before), the Sleep Timer, Presets, Mix Code and Credits. Top right, four places to go: the Room, the Beach, the Forest
+and the Lake, each with its own scene, its own sounds and its own things to touch. A web app: a page in Web/ shown full screen in its own window
 on the Mac. Based on [Moodist](https://github.com/remvze/moodist) by remvze (MIT), adapted from its code at commit
 11c0be2200116a3635880d600fd6953899cc51a3 (credits.json, Licenses/remvze/moodist/LICENSE).
 
@@ -22,8 +23,21 @@ on the Mac. Based on [Moodist](https://github.com/remvze/moodist) by remvze (MIT
   lamp over its last two minutes; when it ends the house is "asleep" (fire out, lamp down) until touched.
 - Nothing plays until the first press ("Come in", or touching anything).
 
-What's saved (LampStore): `sounds` (each sound's on/off, volume, favorite, swell), `master`, `presets`, and `house`
-({ window: 0..1, chair: 0..1, lamp: bool }). The first visit, with nothing on, turns on rain, fire and clock.
+What's saved (LampStore): `sounds` (each sound's on/off, volume, favorite, swell, for the place you're in), `master`,
+`presets`, and `house` ({ window: 0..1, chair: 0..1, lamp: bool, place, seats: the chair in each place outdoors, mixes:
+the mix left in each other place }). The first visit, with nothing on, turns on rain, fire and clock.
+
+## The places
+
+- Web/places.js says what each place is: its first mix, the things to touch and what they say, and how the chair's
+  place shapes the mix (`near`). The armchair comes along: at the beach, the forest and the lake it moves between a
+  spot on land and the water, and the waves or the stream grow nearer as it goes.
+- Beach: sunset, waves, wind, wind chimes on a post (they sway while they ring), a fire pit to light. Forest: morning,
+  birds, a stream, the wind, a ring of stones to light. Lake: night and stars, crickets, a campfire, low waves, a tent.
+- Going to a place crossfades the sounds over 1.2 s behind a half-second dark. The mix you leave stays with that place
+  and comes back when you do; the first visit plays the place's own mix.
+- The mixer has every sound everywhere, and presets and mix codes apply to the place you're in. Rain falls in any
+  place while a rain sound is on. The window and the lamp belong to the room; the sleep timer dims the outdoors too.
 
 ## How it's made
 
@@ -31,6 +45,9 @@ What's saved (LampStore): `sounds` (each sound's on/off, volume, favorite, swell
   fire light, a dim blue moon and sky), the camera framing for any screen shape (further back when narrow), clicks
   and the chips' positions. Reads `HouseApp.view()` from app.js every frame and eases toward it; calls
   `HouseApp.touch(name, value)`.
+- Web/outside.js (a module): the three outdoor places, each a group turned so its -z runs away from the camera. The sky,
+  the water (one shader that draws its shoreline, foam and path of light), the palms, tent and chimes are made in code;
+  trees, rocks and logs are the Nature Kit's. `moods` in house.js says how each place is lit and looked at.
 - Web/weather.js: the rain (1,600 points with the Particle Pack's trace streak, kept outside the walls) and the fire
   (flame sprites cycling the pack's flame pictures, a glow and rising embers).
 - Web/app.js: the mixer on Web Audio (each voice: source → low-pass filter → gain → master), the room's state, chips,
@@ -50,6 +67,7 @@ Licenses/sounds/NOTICE-sounds.md. An update from Moodist must never bring its so
 
 ## Left out, for now
 
+- Sounds of their own for the new places (gulls, say): they play from the same CC0 recordings as the rest.
 - Moodist's other sounds, lofi music and radio, other timers, notepad, themes, media controls in Now Playing.
 - The clock has no moving pendulum or hands (the model is one piece).
 - Sound stops when the window closes; the sleep timer counts only while it's open.
