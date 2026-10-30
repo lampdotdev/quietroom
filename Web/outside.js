@@ -338,10 +338,10 @@ export function buildPlaces({ model, fit, tag, stages, textures }) {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geometry.setIndex(index);
-    const uniforms = { t: { value: 0 }, fogColor: { value: new THREE.Color('#d8dfae') } };
+    const uniforms = { t: { value: 0 }, fogColor: { value: new THREE.Color('#d8dfae') }, fogNear: { value: 9 }, fogFar: { value: 34 } };
     group.add(inert(new THREE.Mesh(geometry, new THREE.ShaderMaterial({
       uniforms, fog: false, side: THREE.DoubleSide,
-      vertexShader: `varying vec2 vUv; varying float vFar; void main() { vUv = uv; vec4 v = modelViewMatrix * vec4(position, 1.0); vFar = smoothstep(9.0, 34.0, length(v.xyz)); gl_Position = projectionMatrix * v; }`,
+      vertexShader: `uniform float fogNear, fogFar; varying vec2 vUv; varying float vFar; void main() { vUv = uv; vec4 v = modelViewMatrix * vec4(position, 1.0); vFar = smoothstep(fogNear, fogFar, length(v.xyz)); gl_Position = projectionMatrix * v; }`,
       fragmentShader: `
         varying vec2 vUv; varying float vFar; uniform float t; uniform vec3 fogColor;
         void main() {
@@ -376,7 +376,7 @@ export function buildPlaces({ model, fit, tag, stages, textures }) {
     flames(group, set.hearth);
     seat(set, group);
     const drift = motes(group, textures.mote, { count: 70, box: { x: [-6, 6], y: [0.3, 4], z: [-7, 3] }, color: '#fff0b8', size: 0.07, seed: 5 });
-    set.update = t => { uniforms.t.value = t; drift(t); };
+    set.update = (t, dt, view, fog) => { uniforms.t.value = t; uniforms.fogNear.value = fog.near; uniforms.fogFar.value = fog.far; drift(t); };
   }
 
   // The lake at night: stars, a low moon over the water, a tent and a campfire on the shore.

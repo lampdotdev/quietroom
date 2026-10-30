@@ -269,6 +269,8 @@ const tmp = new THREE.Vector3();
 
 // MARK: Framing: the whole room in view at any shape of screen
 
+const SCENERY = 66;        // from the middle of a place out past its sky and water, with a margin
+
 function resize() {
   const w = window.innerWidth, h = window.innerHeight, aspect = w / h;
   renderer.setSize(w, h, false);
@@ -279,14 +281,19 @@ function resize() {
   const halfWidth = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * aspect);
   const mood = moods[current];
   const distance = Math.max(7.4, 3.0 / Math.tan(halfWidth)) * mood.back;
-  scene.fog.near = current === 'room' ? distance + mood.fog[1] : mood.fog[1];
-  scene.fog.far = current === 'room' ? distance + mood.fog[2] : mood.fog[2];
+  // Fog is measured from the camera, so a place keeps its look however far back a narrow screen puts it.
+  const fogFrom = current === 'room' ? distance : distance - 7.4 * mood.back;
+  scene.fog.near = fogFrom + mood.fog[1];
+  scene.fog.far = fogFrom + mood.fog[2];
+  // The sky and the far water stay in view from as far back as the camera can go.
+  const reach = Math.max(13, distance + 3);
+  camera.far = reach + SCENERY;
   camera.updateProjectionMatrix();
   const dir = camera.position.clone().sub(controls.target);
   if (dir.lengthSq() < 0.01) dir.copy(sets[current].group.localToWorld(tmp.fromArray(mood.dir))).sub(sets[current].group.position);
   dir.setLength(distance);
   camera.position.copy(controls.target).add(dir);
-  controls.maxDistance = Math.max(13, distance + 3);
+  controls.maxDistance = reach;
 }
 window.addEventListener('resize', resize);
 
@@ -354,6 +361,8 @@ function hit(event) {
 let lastPointer = null;
 canvas.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; lastPointer = down; });
 canvas.addEventListener('click', e => {
+  // On the way to another place the old one is still on screen: a touch here would land in the new one.
+  if (!window.HouseApp || window.HouseApp.view().place !== current) return;
   // A click made by software may come without a place: then it's where the pointer last went down.
   const at = (e.clientX || e.clientY || !lastPointer) ? { clientX: e.clientX, clientY: e.clientY } : { clientX: lastPointer.x, clientY: lastPointer.y };
   const dragged = down && Math.hypot(at.clientX - down.x, at.clientY - down.y) > 6;
@@ -433,7 +442,7 @@ function frame(now) {
   const dusk = current === 'room' ? 1 : 1 - (view.dim || 0) * 0.7;
   hemi.intensity = mood.hemi[2] * dusk;
   moon.intensity = mood.sun[1] * dusk;
-  if (set.update) set.update(t, dt, view);
+  if (set.update) set.update(t, dt, view, scene.fog);
 
   if (weather) weather.update(dt, t, { rain: view.rain, fire: shown.fire, window: shown.pane });
 
