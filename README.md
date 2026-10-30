@@ -6,7 +6,9 @@
 
 <p align="center"><a href="https://lamp.dev/?repo=https://github.com/lampdotdev/thelittlehouse&amp;from=readme"><img src=".github/open-in-lamp.svg" width="164" height="48" alt="Open in Lamp"></a></p>
 
-<p align="center"><img src=".github/preview.png" width="720" alt="The Little House"></p>
+<p align="center"><a href=".github/showcase/reel.mp4"><img src=".github/showcase/loop.webp" width="720" alt="The Little House"></a></p>
+
+<p align="center"><a href=".github/showcase/reel.mp4">Watch it with sound</a></p>
 
 ## Make The Little House yours
 

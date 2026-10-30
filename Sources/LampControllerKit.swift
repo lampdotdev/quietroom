@@ -1,10 +1,64 @@
 // Lamp's controller kit (Sources/LampRelayKit in Lamp's source, as one file). Written by Lamp before every build; don't edit.
+#if os(macOS) || os(iOS)
+import Foundation
 #if os(macOS)
+import SystemConfiguration
+#endif
+
+/// Where phones reach a game's controllers, on whichever device the game runs: a Mac, an iPhone or an iPad. Read again
+/// at every ask, since the device's addresses change with the network it's on. A phone is only ever given an address
+/// on the device's Wi‑Fi or wired network, never a loopback one, which would point the phone at itself.
+public enum ControllerAddresses {
+    /// The device's IPv4 addresses on its Wi‑Fi and wired networks (the `en` interfaces on a Mac and on an iPhone or
+    /// iPad), up and not loopback, the ones a phone on the same network opens: routable ones first, a self-assigned
+    /// 169.254 one (a network with no router) last.
+    public static func lan() -> [String] {
+        var found: [String] = []
+        var first: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&first) == 0, let first else { return [] }
+        defer { freeifaddrs(first) }
+        for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            let entry = pointer.pointee
+            let name = String(cString: entry.ifa_name)
+            guard name.hasPrefix("en"), let address = entry.ifa_addr, address.pointee.sa_family == UInt8(AF_INET),
+                  entry.ifa_flags & UInt32(IFF_UP) != 0, entry.ifa_flags & UInt32(IFF_LOOPBACK) == 0 else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            if getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                let text = String(cString: host)
+                if !found.contains(text) { found.append(text) }
+            }
+        }
+        return found.filter { !$0.hasPrefix("169.254.") } + found.filter { $0.hasPrefix("169.254.") }
+    }
+
+    /// The Mac's Bonjour name, as phones may reach it ("name.local"). An iPhone or iPad has no name of its own a game
+    /// can read, so its phones are given an address.
+    public static func localHostName() -> String? {
+        #if os(macOS)
+        guard let name = SCDynamicStoreCopyLocalHostName(nil) as String?, !name.isEmpty else { return nil }
+        return name + ".local"
+        #else
+        return nil
+        #endif
+    }
+
+    /// The names and addresses a phone page is served as: the device's on its networks, and the loopback ones.
+    public static func names() -> Set<String> {
+        var names: Set<String> = ["127.0.0.1", "localhost", "::1"]
+        if let name = localHostName() { names.insert(name.lowercased()) }
+        for address in lan() { names.insert(address.lowercased()) }
+        return names
+    }
+
+    /// The host a phone's link carries: the first network address, else the Mac's Bonjour name; nil when the device is
+    /// on no network a phone could share, which is said rather than handing out a link that can't work.
+    public static func linkHost() -> String? { lan().first ?? localHostName() }
+}
+
 import CryptoKit
 import Foundation
-import SystemConfiguration
 
-/// One game's phones as controllers, run by the game itself on the Mac: its phone page, served from the copy Lamp put
+/// One game's phones as controllers, run by the game itself on the Mac, an iPhone or an iPad: its phone page, served from the copy Lamp put
 /// in the game's bundle (`PhonePageServer`), and the relay its phones and its page meet at (`Relay`), both in the
 /// game's own process, each on a port the system gives it free. The game's page asks for its session (`/app/controller`,
 /// which the app around the page answers from here) as `Lamp.controllers` starts and every few seconds after; the first
@@ -15,8 +69,8 @@ import SystemConfiguration
 /// page's files, its JavaScript, the link a phone opens or the bundle. A session that stops and starts again has a new
 /// key, so nothing handed out before gets in.
 ///
-/// Lamp builds this file into its own relay (LampRelayKit), where the tests reach it, and into every game on the Mac
-/// (`GameKit.controllerKit`), where LampPage.swift runs it.
+/// Lamp builds this file into its own relay (LampRelayKit), where the tests reach it, and into every game on the Mac,
+/// the iPhone and the iPad (`GameKit.controllerKit`), where LampPage.swift runs it.
 public final class ControllerRuntime: @unchecked Sendable {
     public let app: String
     private let root: URL
@@ -25,11 +79,12 @@ public final class ControllerRuntime: @unchecked Sendable {
     private var relay: Relay?
     private var relayPort: UInt16?
     private var site: PhonePageServer?
-    /// This Mac's names and addresses, and the address a phone's link carries. Changed by tests.
-    public var hosts: @Sendable () -> Set<String> = ControllerRuntime.macNames
-    public var linkHost: @Sendable () -> String = { PhonePageServer.localAddresses().first ?? ControllerRuntime.localHostName() ?? "127.0.0.1" }
+    /// The device's names and addresses, and the host a phone's link carries (nil: on no network a phone can share).
+    /// Changed by tests.
+    public var hosts: @Sendable () -> Set<String> = { ControllerAddresses.names() }
+    public var linkHost: @Sendable () -> String? = { ControllerAddresses.linkHost() }
 
-    /// How often the page asks again, which tells the relay where the page is now (the Mac's address moves with the network).
+    /// How often the page asks again, which tells the relay where the page is now (the device's address moves with the network).
     public static let renew = 15
 
     /// `root`: the game's phone page, as Lamp put it in the bundle.
@@ -63,6 +118,12 @@ public final class ControllerRuntime: @unchecked Sendable {
         guard FileManager.default.fileExists(atPath: root.appendingPathComponent("index.html").path) else {
             return (409, ["error": "The game has no phone page yet: put one in Phone/index.html."])
         }
+        // Never a loopback link: a phone opening it would reach itself. The page's next ask tries again, once the device
+        // is back on a network.
+        guard let link = linkHost() else {
+            close()
+            return (503, ["error": "This device isn't on a Wi‑Fi network phones can join. Join one, and phones can play again."])
+        }
         let key = self.key ?? SymmetricKey(size: .bits256)
         self.key = key
         guard let relayPort = openRelay(key) else {
@@ -74,11 +135,16 @@ public final class ControllerRuntime: @unchecked Sendable {
             close()
             return (503, ["error": "The phone page couldn't open on this Mac."])
         }
-        relay?.configure(app: app, Relay.Session(generation: 0, pagePort: pagePort, page: "http://\(linkHost()):\(pagePort)/",
+        relay?.configure(app: app, Relay.Session(generation: 0, pagePort: pagePort, page: Self.address(link, pagePort),
                                                  hosts: Array(hosts()).sorted()))
         let credential = ControllerToken.issue(kind: .host, app: app, generation: 0, key: key)
         return (200, ["links": [["kind": "relay", "socket": "ws://127.0.0.1:\(relayPort)/", "app": app, "credential": credential]],
                       "renew": Self.renew])
+    }
+
+    /// A page's address at `host`, an IPv6 one in brackets.
+    static func address(_ host: String, _ port: UInt16) -> String {
+        "http://\(host.contains(":") ? "[\(host)]" : host):\(port)/"
     }
 
     private func close() {
@@ -135,22 +201,6 @@ public final class ControllerRuntime: @unchecked Sendable {
     private var sharedRelayPort: UInt16?
     private var currentRelayPort: UInt16? { portLock.withLock { sharedRelayPort } }
     private func share(_ port: UInt16?) { portLock.withLock { sharedRelayPort = port } }
-
-    // MARK: This Mac
-
-    /// This Mac's Bonjour name, as phones may reach it ("name.local").
-    public static func localHostName() -> String? {
-        guard let name = SCDynamicStoreCopyLocalHostName(nil) as String?, !name.isEmpty else { return nil }
-        return name + ".local"
-    }
-
-    /// The names and addresses a page is served as: this Mac's on its networks, and the loopback ones.
-    public static func macNames() -> Set<String> {
-        var names: Set<String> = ["127.0.0.1", "localhost", "::1"]
-        if let name = localHostName() { names.insert(name.lowercased()) }
-        for address in PhonePageServer.localAddresses() { names.insert(address.lowercased()) }
-        return names
-    }
 }
 
 /// What a callback on another queue says, read after a semaphore says it has.
@@ -364,12 +414,176 @@ extension Data {
 }
 
 import Foundation
+
+/// What a page shared with this person may reach: its own files, and the exact sites (scheme, host and port) the safety
+/// sheet named when it arrived, read from its code (`WebReach`, `SharedNetwork` in Lamp). Lamp keeps it in its own folder,
+/// outside the app's, and writes it into every build of the app (Info.plist's `LampNetwork`), so it holds with Lamp
+/// closed and neither the page's code, a rebuild nor a live change can widen it. Swift of the sender's in the app
+/// (`ownSwift`) can: it runs in the app's own process, where it can reach the network itself and switch the page's
+/// guard off (the person's choices are kept in the app's defaults), so such an app isn't held at all, its page
+/// included, and its sheet says "Has Swift that can reach any site". An app the person made has none and reaches what
+/// it likes.
+///
+/// One rule for every host of a shared page, each reading this type rather than a copy of it: the app around it on the
+/// Mac, the iPhone and the iPad (LampPage.swift, as Content-Security-Policy headers and its navigation) and Lamp's
+/// previews (`StagedFiles`) do; a host elsewhere (a TV, an Xbox, Android, a phone's controller page) holds a shared page
+/// only once it reads it too. It's in LampRelayKit because that's the Swift Lamp and every page's app compile alike
+/// (the controller kit).
+public struct NetworkPolicy: Codable, Equatable, Sendable {
+    /// Exact origins, as `origin(_:)` writes them: "https://api.open-meteo.com", "wss://relay.example:8443".
+    public var origins: [String]
+    /// The sheet said the app may connect outside itself (a request whose address Lamp couldn't work out): a request it
+    /// blocks is shown to the person, who can allow that one site.
+    public var mayConnect: Bool
+    /// The app carries Swift of the sender's beside the page (any of Sources/ but Lamp's own Native.swift): it runs in
+    /// the app's process, where it can reach the network itself and turn the page's guard off, so the app isn't held to
+    /// these sites, its page included.
+    public var ownSwift: Bool
+    /// The person chose to let it reach any site, for good.
+    public var unrestricted: Bool
+
+    public init(origins: [String] = [], mayConnect: Bool = false, ownSwift: Bool = false, unrestricted: Bool = false) {
+        self.origins = Array(Set(origins.compactMap(Self.origin))).sorted()
+        self.mayConnect = mayConnect
+        self.ownSwift = ownSwift
+        self.unrestricted = unrestricted
+    }
+
+    /// Whether the page is held to its sites: a shared app the person hasn't let reach every site.
+    public var restricts: Bool { !unrestricted }
+
+    /// The site an address is on, as a policy names it: the scheme, the host lowercased, and the port when it isn't the
+    /// scheme's own. Only the web's schemes (http, https, ws, wss) are sites; anything else is nil.
+    public static func origin(_ text: String) -> String? {
+        guard let parts = URLComponents(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = parts.scheme?.lowercased(), let host = parts.host?.lowercased(), !host.isEmpty,
+              let standard = ["http": 80, "https": 443, "ws": 80, "wss": 443][scheme] else { return nil }
+        // A host is letters, digits, dots and dashes (or an IPv6 address in brackets): nothing that could end a policy's
+        // source list early.
+        let bare = host.hasPrefix("[") && host.hasSuffix("]") ? String(host.dropFirst().dropLast()) : host
+        guard bare.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || ".-:".contains($0)) }) else { return nil }
+        let shown = host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host
+        return scheme + "://" + shown + (parts.port.map { $0 == standard ? "" : ":\($0)" } ?? "")
+    }
+
+    public static func origin(of url: URL) -> String? { origin(url.absoluteString) }
+
+    /// Whether a request to `url` may go: a page's own address (`own`, its scheme and host), a page's own data (data:,
+    /// blob:, about:), or one of its sites. `extra` are sites the person allowed on this device.
+    public func allows(_ url: URL, own: String, extra: [String] = []) -> Bool {
+        if unrestricted { return true }
+        let scheme = url.scheme?.lowercased() ?? ""
+        if ["data", "blob", "about"].contains(scheme) { return true }
+        if let ownURL = URL(string: own), scheme == ownURL.scheme?.lowercased(), url.host?.lowercased() == ownURL.host?.lowercased() { return true }
+        guard let site = Self.origin(of: url) else { return false }
+        return (origins + extra.compactMap(Self.origin)).contains(site)
+    }
+
+    /// Whether a page may be shown in a frame of the page, or the page itself go there: only the page's own address and
+    /// what it makes for itself (blob: and about:). A site the page may fetch from is still never a frame of it, since
+    /// a page from there would run with none of these rules.
+    public func allowsFrame(_ url: URL, own: String) -> Bool {
+        if unrestricted { return true }
+        let scheme = url.scheme?.lowercased() ?? ""
+        if scheme == "blob" || scheme == "about" { return true }
+        guard let ownURL = URL(string: own) else { return false }
+        return scheme == ownURL.scheme?.lowercased() && url.host?.lowercased() == ownURL.host?.lowercased()
+    }
+
+    /// The Content-Security-Policy every document and worker of the page is served with, for a page at `own`
+    /// ("lamp-web-app://app"), nil when it isn't restricted. Nothing is allowed that isn't named: the page's own files and
+    /// its sites for what it loads and connects to; its inline code and eval (Lamp's review reads those, and they're held
+    /// to the same sites); data: and blob: for what it makes itself; frames and workers only from itself. Forms post only
+    /// to itself, and plugins never run. A site's scheme is as exact as CSP makes it: a ws: site lets that host and port's
+    /// http: through too, and an http: site its https: (CSP's own matching), never another host or port. `connect` are
+    /// sites the page may only connect to, never load from, and only while its host says so: Lamp's own controllers relay
+    /// in its TV preview, at whichever port it listens on now. They're never the page's sites, so never kept as them.
+    public func contentSecurityPolicy(own: String, extra: [String] = [], connect: [String] = []) -> String? {
+        guard restricts else { return nil }
+        let sites = Array(Set(origins + extra.compactMap(Self.origin))).sorted()
+        let me = "'self' " + own
+        let reach = ([me] + sites).joined(separator: " ")
+        let connecting = ([reach] + Array(Set(connect.compactMap(Self.origin)).subtracting(sites)).sorted()).joined(separator: " ")
+        return [
+            "default-src \(me)",
+            "script-src \(reach) 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:",
+            "style-src \(reach) 'unsafe-inline' data: blob:",
+            "img-src \(reach) data: blob:",
+            "media-src \(reach) data: blob:",
+            "font-src \(reach) data: blob:",
+            "connect-src \(connecting) data: blob:",
+            "worker-src \(me) blob:",
+            "child-src \(me) blob:",
+            "frame-src \(me) blob:",
+            "manifest-src \(me)",
+            "object-src 'none'",
+            "base-uri \(me)",
+            "form-action \(me)",
+        ].joined(separator: "; ")
+    }
+
+    // MARK: In the app's Info.plist
+
+    /// The policy as the app's Info.plist carries it under `LampNetwork`.
+    public static let plistKey = "LampNetwork"
+
+    /// The policy's lines in an Info.plist (`<key>LampNetwork</key><dict>…</dict>`).
+    public var plistLines: String {
+        func flag(_ value: Bool) -> String { value ? "<true/>" : "<false/>" }
+        let sites = origins.map { "<string>\(Self.escaped($0))</string>" }.joined()
+        return "  <key>\(Self.plistKey)</key><dict><key>origins</key><array>\(sites)</array>"
+            + "<key>mayConnect</key>\(flag(mayConnect))<key>ownSwift</key>\(flag(ownSwift))<key>unrestricted</key>\(flag(unrestricted))</dict>"
+    }
+
+    /// The policy an app's Info.plist carries, or nil when it has none (an app the person made).
+    public init?(plist value: Any?) {
+        guard let dict = value as? [String: Any] else { return nil }
+        self.init(origins: dict["origins"] as? [String] ?? [], mayConnect: dict["mayConnect"] as? Bool ?? false,
+                  ownSwift: dict["ownSwift"] as? Bool ?? false, unrestricted: dict["unrestricted"] as? Bool ?? false)
+    }
+
+    private static func escaped(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+    }
+}
+
+#if canImport(WebKit)
+import WebKit
+
+extension NetworkPolicy {
+    /// What WebKit reaches out to on a page's behalf that no Content-Security-Policy covers, turned off for a page held to
+    /// its sites: WebRTC (its STUN and TURN servers are whichever the page names), and a link's preconnect and prefetch,
+    /// which look up a name and open a connection whose name, in the lookup and the TLS hello, is whatever the page
+    /// spells. WebKit's switches for these aren't public: each is asked for by its name, and only where it's there.
+    /// Returns the ones turned off. Call it before the web view is made.
+    @MainActor @discardableResult
+    public static func holdBack(_ preferences: WKPreferences) -> [String] {
+        let off: Set<String> = ["PeerConnectionEnabled", "LinkPreconnect", "LinkPreconnectEarlyHintsEnabled",
+                                "LinkPrefetchEnabled", "SpeculationRulesPrefetchEnabled"]
+        let list = NSSelectorFromString("_features"), set = NSSelectorFromString("_setEnabled:forFeature:")
+        let type: AnyObject = WKPreferences.self
+        guard type.responds(to: list), preferences.responds(to: set),
+              let features = type.perform(list)?.takeUnretainedValue() as? [NSObject] else { return [] }
+        typealias Setter = @convention(c) (AnyObject, Selector, Bool, AnyObject) -> Void
+        let setEnabled = unsafeBitCast(preferences.method(for: set), to: Setter.self)
+        var done: [String] = []
+        for feature in features {
+            guard let key = feature.value(forKey: "key") as? String, off.contains(key) else { continue }
+            setEnabled(preferences, set, false, feature)
+            done.append(key)
+        }
+        return done.sorted()
+    }
+}
+#endif
+
+import Foundation
 import Network
 
 /// One game's phone page, served by the game itself (`ControllerRuntime`) on a port of its own, as Lamp serves a TV
 /// app's page (`PhoneSites`): each game's page is an origin of its own in a phone's browser. Plain GETs of the files of
-/// the page Lamp put in the game's bundle (`ControllerSnapshot`), from a phone on the network by one of this Mac's names
-/// or addresses, or on this Mac by a loopback name; and `lamp-relay.json`, where lamp-controller.js opens its socket.
+/// the page Lamp put in the game's bundle (`ControllerSnapshot`), from a phone on the network by one of the device's names
+/// or addresses, or on the device by a loopback name; and `lamp-relay.json`, where lamp-controller.js opens its socket.
 public final class PhonePageServer: @unchecked Sendable {
     /// The port asked for (0: any the system gives), then the one it listens on once it does.
     public private(set) var port: UInt16?
@@ -382,7 +596,7 @@ public final class PhonePageServer: @unchecked Sendable {
     private var open: [ObjectIdentifier: String] = [:]
     public static let connectionLimit = (all: 64, each: 16)
     public static let headDeadline: TimeInterval = 10
-    /// The names and addresses this Mac answers as, lowercased, read when asked: they change with the network.
+    /// The names and addresses the device answers as, lowercased, read when asked: they change with the network.
     private let hosts: @Sendable () -> Set<String>
     private let relayPort: @Sendable () -> UInt16?
 
@@ -493,11 +707,11 @@ public final class PhonePageServer: @unchecked Sendable {
         return page
     }
 
-    /// A page by its path, asked for by `host`: only this Mac by one of its names, so a page elsewhere that made its own
+    /// A page by its path, asked for by `host`: only this device by one of its names, so a page elsewhere that made its own
     /// name lead here (DNS rebinding) reads nothing.
     public func answer(path full: String, host: String?) -> Page {
         guard Self.names(host, among: hosts()) else { return Page(status: 403, body: Data("Not for this host.".utf8)) }
-        let missing = Page(status: 404, body: Data("Nothing here. Open the game on the Mac first.".utf8))
+        let missing = Page(status: 404, body: Data("Nothing here. Open the game first.".utf8))
         let path = full.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
         guard path.hasPrefix("/") else { return missing }
         var names = path.dropFirst().split(separator: "/", omittingEmptySubsequences: false).map { $0.removingPercentEncoding ?? "\0" }
@@ -569,24 +783,8 @@ public final class PhonePageServer: @unchecked Sendable {
         }
     }
 
-    /// This Mac's addresses on its Wi‑Fi and wired networks (IPv4), the ones a phone on the same network opens.
-    public static func localAddresses() -> [String] {
-        var found: [String] = []
-        var first: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&first) == 0, let first else { return [] }
-        defer { freeifaddrs(first) }
-        for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
-            let entry = pointer.pointee
-            let name = String(cString: entry.ifa_name)
-            guard name.hasPrefix("en"), let address = entry.ifa_addr, address.pointee.sa_family == UInt8(AF_INET),
-                  entry.ifa_flags & UInt32(IFF_UP) != 0, entry.ifa_flags & UInt32(IFF_LOOPBACK) == 0 else { continue }
-            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            if getnameinfo(address, socklen_t(address.pointee.sa_len), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
-                found.append(String(cString: host))
-            }
-        }
-        return found
-    }
+    /// The device's addresses on its Wi‑Fi and wired networks (`ControllerAddresses.lan`).
+    public static func localAddresses() -> [String] { ControllerAddresses.lan() }
 }
 
 import CryptoKit
@@ -610,7 +808,8 @@ import Network
 /// (`WishChannel`), and everything after it is sealed, so what they say crosses the network unreadable. A peer names
 /// which app it is in its hello, hears who else is in the room (`welcome`, `joined`, `left`) and sends JSON messages to
 /// one peer or to all (`send` → `message`) and the values they share to one peer (`values`), under the same size and
-/// rate limits as a phone's; it keeps no values itself. Files go to one peer in pieces (`WishChannel.piece`) under the
+/// rate limits as a phone's; it keeps no values itself. What the copies share in collections (`LampStore.shared`) Lamp
+/// keeps, as a member under the relay's own name (`WishKeeper`), when Lamp gives the room a folder for it. Files go to one peer in pieces (`WishChannel.piece`) under the
 /// controllers' flow (`ControllerWire`: a window ahead of what's acknowledged, two at once each way between two apps),
 /// and a game's controls from a wish's app to its TV app's `Lamp.controllers` as `pad` messages; both only to an app
 /// that speaks 3 or more, since an earlier one would take a piece for a message gone wrong. The relay tells whoever
@@ -740,6 +939,8 @@ public final class Relay: @unchecked Sendable {
         var apps: [String: (kind: String, name: String)]
         var waiting: Set<String> = []
         var members: [String: Member] = [:]
+        /// Lamp keeping the wish's shared collections (`WishKeeper`), when Lamp gave the room a folder for them.
+        var keeper: WishKeeper?
         init(key: Data, apps: [String: (kind: String, name: String)]) {
             self.keyData = key
             self.key = SymmetricKey(data: key)
@@ -761,6 +962,8 @@ public final class Relay: @unchecked Sendable {
     private var proving: [ObjectIdentifier: (peer: RelayPeer, from: String)] = [:]
     /// Who is in a room, each time that changes: the room's key and its members (`peer`, `kind`, `name`, `device`, `since`).
     public var onRoomChanged: @Sendable (_ room: String, _ members: [[String: Any]]) -> Void = { _, _ in }
+    /// What a copy said to Lamp itself (`send` to the relay's name): what it has of a page's change. For Lamp alone.
+    public var onHeard: @Sendable (_ room: String, _ copy: String, _ data: Any) -> Void = { _, _, _ in }
     /// Sockets not yet past their hello: held here, since nothing else holds them until they're a player or a host.
     private var greeting: [ObjectIdentifier: (peer: RelayPeer, from: String)] = [:]
     /// How many sockets may wait to say hello at once, in all and from one address (an IPv6 one by its network, since a
@@ -838,6 +1041,12 @@ public final class Relay: @unchecked Sendable {
         return games.values.contains { $0.session.pagePort.map(Int.init) == port && $0.session.hosts.contains(host) }
     }
 
+    /// The process is ending: what each room's keeper hasn't written yet is written now, before this returns, so a
+    /// change a copy made in the last moment before Lamp quit isn't lost. Never on the relay's own queue.
+    public func finish() {
+        queue.sync { for room in rooms.values { room.keeper?.close() } }
+    }
+
     public func stop() {
         queue.async {
             self.listener?.cancel()
@@ -884,11 +1093,13 @@ public final class Relay: @unchecked Sendable {
     /// Opens a wish's room, or brings it up to date (an app added or taken away). `key`: the wish's key, which every app
     /// of the wish holds and proves it does to get in; `apps`: each app the wish may have, by its peer id, with its kind
     /// and name; a peer whose id isn't among them is turned away. `waiting`: those of them Lamp hasn't made yet, so the
-    /// others can say so. A new key ends the old room first, letting its members go.
-    public func configureRoom(_ room: String, key: Data, apps: [String: (kind: String, name: String)], waiting: Set<String> = []) {
+    /// others can say so. `keep`: the folder Lamp keeps the wish's shared collections in (`WishKeeper`), none for a
+    /// room that keeps nothing. A new key ends the old room first, letting its members go.
+    public func configureRoom(_ room: String, key: Data, apps: [String: (kind: String, name: String)], waiting: Set<String> = [], keep: URL? = nil) {
         queue.async {
             if let known = self.rooms[room], known.keyData != key { self.closeRoom(room) }
             if let known = self.rooms[room] {
+                known.keeper?.appCount = apps.count
                 let changed = Set(known.apps.map { "\($0.key)\t\($0.value.kind)\t\($0.value.name)" })
                     != Set(apps.map { "\($0.key)\t\($0.value.kind)\t\($0.value.name)" }) || known.waiting != waiting
                 known.apps = apps
@@ -903,6 +1114,7 @@ public final class Relay: @unchecked Sendable {
             } else {
                 let made = Room(key: key, apps: apps)
                 made.waiting = waiting
+                if let keep { made.keeper = self.keeper(for: made, in: keep) }
                 self.rooms[room] = made
                 self.tags[made.tag] = room
                 self.startTicking()
@@ -910,13 +1122,54 @@ public final class Relay: @unchecked Sendable {
         }
     }
 
-    /// The wish is gone, or its room isn't wanted any more: its members are let go.
-    public func endRoom(_ room: String) {
-        queue.async { self.closeRoom(room) }
+    /// Lamp's own word to some copies of a wish's apps (a page's change put into each open copy, `Store.pageToCopies`):
+    /// passed as a message from the relay's own name, which no app of a wish has (`prove`), so a page can tell it's
+    /// Lamp's. `done` is told the copies it went to.
+    public func say(in room: String, to copies: [String], data: Any, done: @escaping ([String]) -> Void) {
+        queue.async {
+            guard let known = self.rooms[room] else { return done([]) }
+            let out = Self.json(["t": "message", "from": WishChannel.relayName, "data": data, "at": Self.now])
+            var reached: [String] = []
+            for id in copies.sorted() {
+                guard let member = known.members[id] else { continue }
+                member.send(out)
+                reached.append(id)
+            }
+            done(reached)
+        }
+    }
+
+    /// The wish is gone, or its room isn't wanted any more: its members are let go. `forget`: the wish is gone, and what
+    /// Lamp kept of its shared collections goes with it.
+    public func endRoom(_ room: String, forget: Bool = false) {
+        queue.async {
+            if forget { self.rooms[room]?.keeper?.forget() }
+            self.closeRoom(room)
+        }
+    }
+
+    /// Lamp as a keeper of the room's shared collections, speaking to its members as the relay's own name.
+    private func keeper(for room: Room, in folder: URL) -> WishKeeper {
+        let keeper = WishKeeper(folder: folder, key: room.key, queue: queue)
+        keeper.appCount = room.apps.count
+        keeper.send = { [weak room] copy, message in
+            // A copy that has stopped reading misses what's said meanwhile, as from another copy: the next sums make it up.
+            guard let member = room?.members[copy], member.wire >= WishKeeper.wire, member.peer.pendingText <= Self.hostBehind else { return }
+            var out = message
+            out["from"] = WishChannel.relayName
+            member.send(Self.json(out))
+        }
+        keeper.sendPiece = { [weak room] copy, piece in
+            guard let member = room?.members[copy], member.wire >= WishKeeper.wire else { return false }
+            return member.peer.send(piece: piece, seal: { [weak member] plain in member?.sealer.seal(plain) ?? Data() })
+        }
+        keeper.present = { [weak room] in room?.members.mapValues(\.wire) ?? [:] }
+        return keeper
     }
 
     private func closeRoom(_ room: String) {
         guard let known = rooms.removeValue(forKey: room) else { return }
+        known.keeper?.close()
         if tags[known.tag] == room { tags[known.tag] = nil }
         for member in known.members.values { member.peer.close(code: 4005) }
         if !known.members.isEmpty { onRoomChanged(room, []) }
@@ -981,6 +1234,8 @@ public final class Relay: @unchecked Sendable {
         guard let tag = (hello["tag"] as? String).flatMap({ Data(base64Encoded: $0) }), tag.count == WishChannel.tagSize,
               let roomKey = tags[tag], let room = rooms[roomKey],
               let id = hello["peer"] as? String, WishChannel.isName(id), room.apps[WishChannel.app(of: id)] != nil,
+              // The relay's own name is Lamp's (`say`): no app takes it.
+              WishChannel.app(of: id) != WishChannel.relayName,
               let clientNonce = (hello["nonce"] as? String).flatMap({ Data(base64Encoded: $0) }), clientNonce.count == WishChannel.nonceSize
         else { return peer.close(code: 4003) }
         let serverNonce = WishChannel.random(WishChannel.nonceSize)
@@ -1029,13 +1284,17 @@ public final class Relay: @unchecked Sendable {
             old.peer.close(code: 4000)
             room.members[id] = nil
             Self.dropFiles(to: id, in: room)
+            room.keeper?.left(id)
             let left = Self.json(["t": "left", "peer": id])
             for (_, each) in room.members { each.send(left) }
         }
         let member = Member(peer: peer, kind: kind, name: name, device: device, wire: wire, sealer: sealer, opener: opener)
         let others = room.members.sorted { $0.key < $1.key }.map { Self.described($0.key, $0.value) }
         room.members[id] = member
-        member.send(Self.json(["t": "welcome", "role": "peer", "peer": id, "peers": others, "apps": Self.roster(room), "now": Self.now]))
+        var welcome: [String: Any] = ["t": "welcome", "role": "peer", "peer": id, "peers": others, "apps": Self.roster(room), "now": Self.now]
+        // Lamp keeps the wish's shared collections: a copy that knows it shares them with Lamp too.
+        if room.keeper != nil { welcome["keeps"] = true }
+        member.send(Self.json(welcome))
         let joined = Self.json(["t": "joined", "peer": Self.described(id, member)])
         for (other, each) in room.members where other != id { each.send(joined) }
         // Beats are the one thing said in clear, both ways: they carry nothing, and an app that can't hold a socket has Lamp
@@ -1053,11 +1312,13 @@ public final class Relay: @unchecked Sendable {
             guard let self, let room, let member, room.members[id] === member else { return }
             room.members[id] = nil
             Self.dropFiles(to: id, in: room)
+            room.keeper?.left(id)
             let left = Self.json(["t": "left", "peer": id])
             for each in room.members.values { each.send(left) }
             self.onRoomChanged(key, self.membersDescribed(room))
         }
         onRoomChanged(key, membersDescribed(room))
+        room.keeper?.joined(id, wire: wire)
     }
 
     private func fromMember(_ room: Room, key: String, id: String, member: Member, text: String) {
@@ -1092,6 +1353,9 @@ public final class Relay: @unchecked Sendable {
         // The app's shared collections (`LampStore.shared`), for one copy (or each copy of one app) that speaks 5: passed on
         // as they are, since each copy keeps and merges its own.
         if kind == "store", member.rate.allowed(member.peer), let to = message["to"] as? String {
+            // For Lamp, which keeps the wish's collections; and what copies say to each other is kept as well.
+            if to == WishChannel.relayName { return room.keeper?.heard(message, from: id) ?? () }
+            room.keeper?.overheard(message, from: id)
             var out = message
             out["to"] = nil
             out["from"] = id
@@ -1102,6 +1366,7 @@ public final class Relay: @unchecked Sendable {
         if kind == "pad" || kind.hasPrefix("file") { return fileOrPad(room, id: id, member: member, kind: kind, message: message) }
         guard kind == "send", member.rate.allowed(member.peer), let data = message["data"] else { return }
         let to = message["to"] as? String
+        if to == WishChannel.relayName { return onHeard(key, id, data) }
         let out = Self.json(["t": "message", "from": id, "data": data, "at": Self.now])
         if let to {
             // To one copy, or to every copy of one app. Told when none is there, or the one it's for has stopped reading,
@@ -1123,6 +1388,17 @@ public final class Relay: @unchecked Sendable {
     /// moving.
     private func fileOrPad(_ room: Room, id: String, member: Member, kind: String, message: [String: Any]) {
         guard let to = message["to"] as? String, to != id else { return }
+        // A shared file's bytes to or from Lamp, which keeps them (`WishKeeper`).
+        if to == WishChannel.relayName {
+            guard let keeper = room.keeper, kind != "pad" else { return }
+            if kind == "file" {
+                guard member.rate.allowed(member.peer) else { return }
+                keeper.fileStarts(message, from: id)
+            } else {
+                keeper.fileEnded(message, from: id)
+            }
+            return
+        }
         let target = room.members[to].flatMap { $0.wire >= 3 ? $0 : nil }
         switch kind {
         case "pad":
@@ -1170,7 +1446,13 @@ public final class Relay: @unchecked Sendable {
     /// name in its place. A piece past the file's size, or past the window the receiver has acknowledged, is a sender
     /// that doesn't keep to what it said: the file goes no further, and both hear so.
     private func pieceFromMember(_ room: Room, id: String, member: Member, data: Data) {
-        guard let (to, fileID, offset) = WishChannel.pieceHeader(data), let transfer = member.sending[Self.sendingKey(to, fileID)] else { return }
+        guard let (to, fileID, offset) = WishChannel.pieceHeader(data) else { return }
+        if to == WishChannel.relayName {
+            let bytes = data.dropFirst(offset)
+            guard !bytes.isEmpty, bytes.count <= ControllerWire.chunk else { return }
+            return room.keeper?.piece(Data(bytes), id: fileID, from: id) ?? ()
+        }
+        guard let transfer = member.sending[Self.sendingKey(to, fileID)] else { return }
         let bytes = data.count - offset
         let kept = room.members[to] != nil && bytes > 0 && bytes <= ControllerWire.chunk && transfer.passed + bytes <= transfer.size
             && transfer.passed + bytes - transfer.acknowledged <= ControllerWire.window + ControllerWire.chunk
@@ -1493,6 +1775,7 @@ public final class Relay: @unchecked Sendable {
             }
         }
         for room in rooms.values {
+            room.keeper?.tick()
             for member in room.members.values {
                 if now.timeIntervalSince(member.peer.heard) > ControllerWire.silence { member.peer.close(code: 4002); continue }
                 member.peer.send(#"{"t":"beat"}"#)
@@ -1860,6 +2143,559 @@ public enum WishChannel {
             count += 1
             return plain
         }
+    }
+}
+
+import CryptoKit
+import Foundation
+
+/// Lamp on the Mac as a keeper of a wish's shared collections (`LampStore.shared`, the wish's own, and shared files): a
+/// member of the wish's room under the relay's own name (`WishChannel.relayName`, "lamp"), which no app of a wish may
+/// take, that keeps every collection the copies share and speaks the copies' own `store` messages (`items`, `sum`, `ask`,
+/// `file`), so a copy that opens while no other is open still gets the latest, and what it changes while only Lamp is
+/// there reaches the others when they open. It never sets an item itself: it merges what copies send by their rules
+/// (item by item, the latest setting winning, a deletion kept a month) and answers with what it has, so a copy that
+/// meets it is as if it met the copy that set each item.
+///
+/// It isn't an app of the wish: it's never in the room's list or its members, so no app counts it among its copies or
+/// apps; the room's `welcome` says it keeps (`keeps`), and a copy that speaks 7 or more (`wire`) then counts it among
+/// those it shares collections with, all of them, an app's own by that app (`scope`) and the wish's own together. An
+/// older copy never hears from it; what such copies send each other through the room is kept all the same.
+///
+/// What it keeps is in Lamp's own folder (the room's `keep`, by the wish's tag), sealed with a key from the wish's key,
+/// so it reads as nothing without the key, which is kept apart (`WishKeys`). It runs on the relay's queue, as the room does.
+final class WishKeeper {
+    /// The first wire that knows Lamp keeps: only such a copy is sent anything.
+    static let wire = 7
+    static let itemLimit = 8 * 1024
+    static let sharedLimit = 1024 * 1024
+    static let filesLimit = 256 * 1024 * 1024
+    static let collectionsLimit = 32
+    static let removalsKept: Int64 = 30 * 24 * 3600 * 1000
+    /// The wish's own collections, as a scope: every other scope is one app's, by its name.
+    static let wishWide = "*"
+
+    struct Entry {
+        var value: Any?
+        var ms: Int64
+        var n: Int
+        var peer: String
+        func isLater(than other: Entry) -> Bool { (ms, n, peer) > (other.ms, other.n, other.peer) }
+        var json: [String: Any] {
+            var json: [String: Any] = ["c": [ms, n, peer]]
+            if let value { json["v"] = value }
+            return json
+        }
+        /// As the libraries take one: whole numbers in range only, as every language reads them.
+        init?(_ json: Any?) {
+            guard let json = json as? [String: Any], let c = json["c"] as? [Any], c.count == 3,
+                  let ms = Self.whole(c[0]), let n = Self.whole(c[1]), let peer = c[2] as? String,
+                  ms <= 1 << 50, n <= 1_000_000, peer.utf8.count <= 32 else { return nil }
+            self.ms = ms
+            self.n = Int(n)
+            self.peer = peer
+            self.value = json["v"].flatMap { $0 is NSNull ? nil : $0 }
+        }
+        private static func whole(_ value: Any) -> Int64? {
+            guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), !CFNumberIsFloatType(number),
+                  number.int64Value >= 0 else { return nil }
+            return number.int64Value
+        }
+    }
+
+    struct Item {
+        var entry: Entry
+        /// What it takes of the scope's room: its id, and its value as JSON or at least 32 bytes, which a deletion takes.
+        var held: Int
+    }
+
+    private final class Incoming {
+        let scope: String, name: String, id: String, sum: String, size: Int
+        var data = Data()
+        var moved = Date()
+        init(scope: String, name: String, id: String, sum: String, size: Int) {
+            self.scope = scope; self.name = name; self.id = id; self.sum = sum; self.size = size
+        }
+    }
+
+    private final class Outgoing {
+        let bytes: Data
+        var offset = 0
+        var acknowledged = 0
+        var moved = Date()
+        init(bytes: Data) { self.bytes = bytes }
+    }
+
+    let folder: URL
+    private let sealing: SymmetricKey
+    /// Each scope's collections, by name, then each item by id: read from disk the first time it's needed.
+    private var scopes: [String: [String: [String: Item]]] = [:]
+    private var unsaved: Set<String> = []
+    private var saving = false
+    private var closed = false
+    private let queue: DispatchQueue
+    private var incoming: [String: Incoming] = [:]
+    private var outgoing: [String: Outgoing] = [:]
+    /// The files asked of each copy for, each by scope, collection and id: whom and when.
+    private var fileAsks: [String: (copy: String, at: Date)] = [:]
+    private var fileTries: [String: Int] = [:]
+    private var nextFile: UInt32 = 1
+    private var beats = 0
+
+    /// How many apps the wish has, which bounds what's held from them as each copy's library bounds it.
+    var appCount = 1
+    /// Says a `store` or file message to one copy, as from Lamp (the room seals it); nothing for a copy not in the room.
+    var send: (_ copy: String, _ message: [String: Any]) -> Void = { _, _ in }
+    /// Hands one copy a piece of a file (`WishChannel.piece`, from Lamp); false when it can't take more now.
+    var sendPiece: (_ copy: String, _ piece: Data) -> Bool = { _, _ in false }
+    /// The copies in the room now, with what each speaks.
+    var present: () -> [String: Int] = { [:] }
+
+    init(folder: URL, key: SymmetricKey, queue: DispatchQueue) {
+        self.folder = folder
+        self.queue = queue
+        sealing = SymmetricKey(data: WishChannel.derive("lamp-wish keep", key: key))
+    }
+
+    // MARK: From the room
+
+    /// A copy came into the room: told what each of its collections adds up to here, so it asks for what it lacks, and
+    /// asked for the files Lamp lacks.
+    func joined(_ copy: String, wire: Int) {
+        guard wire >= Self.wire, !closed else { return }
+        sendSums(to: copy)
+        fetchFiles()
+    }
+
+    func left(_ copy: String) {
+        incoming = incoming.filter { !$0.key.hasPrefix(copy + "\t") }
+        outgoing = outgoing.filter { !$0.key.hasPrefix(copy + "\t") }
+        for (key, ask) in fileAsks where ask.copy == copy { fileAsks[key] = nil }
+        fetchFiles()
+    }
+
+    /// A copy's `store` message to Lamp.
+    func heard(_ m: [String: Any], from copy: String) {
+        guard !closed, WishChannel.isName(copy) else { return }
+        switch m["op"] as? String {
+        case "items":
+            guard let name = m["s"] as? String, Self.isCollection(name), let given = m["items"] as? [String: Any] else { return }
+            merge(scope(of: name, copy: copy), name, given)
+        case "sum":
+            var asks: [String: [Int]] = [:]
+            for (name, sum) in m["sums"] as? [String: String] ?? [:] where Self.isCollection(name) {
+                let mine = sums(scope(of: name, copy: copy), name)
+                let parts = Self.parts(sum)
+                let differ = (0..<16).filter { parts[$0] != 0 && parts[$0] != mine[$0] }
+                if !differ.isEmpty { asks[name] = differ }
+            }
+            for batch in Self.batches(asks) { send(copy, ["t": "store", "op": "ask", "asks": batch]) }
+        case "ask":
+            for (name, buckets) in m["asks"] as? [String: [Int]] ?? [:] where Self.isCollection(name) {
+                let wanted = Set(buckets)
+                let list = (collections(scope(of: name, copy: copy))[name] ?? [:]).filter { wanted.contains(Int(Self.fnv($0.key) & 15)) }
+                if !list.isEmpty { shareItems(name, list.mapValues(\.entry), to: copy) }
+            }
+        case "file":
+            guard let name = m["s"] as? String, name.hasPrefix("files:"), Self.isCollection(name), let id = m["id"] as? String,
+                  let sum = m["sum"] as? String else { return }
+            sendFile(scope(of: name, copy: copy), name, id: id, sum: sum, to: copy)
+        default:
+            break
+        }
+    }
+
+    /// Items one copy sent another through the room: kept as if sent to Lamp, so what copies that don't know Lamp keeps
+    /// (an older copy) say to each other is kept too.
+    func overheard(_ m: [String: Any], from copy: String) {
+        guard !closed, m["op"] as? String == "items", let name = m["s"] as? String, Self.isCollection(name),
+              let given = m["items"] as? [String: Any] else { return }
+        merge(scope(of: name, copy: copy), name, given)
+    }
+
+    /// Every few seconds, from the relay's beat: once a minute each copy that knows Lamp keeps is told its sums again,
+    /// a file asked for and not come is asked again, and a file that stopped moving ends.
+    func tick() {
+        guard !closed else { return }
+        let now = Date()
+        for (key, file) in incoming where now.timeIntervalSince(file.moved) > 20 {
+            incoming[key] = nil
+            if let (copy, id) = Self.split(key) { send(copy, ["t": "file-refuse", "id": id, "reason": "The file stopped moving."]) }
+        }
+        for (key, file) in outgoing where now.timeIntervalSince(file.moved) > 20 {
+            outgoing[key] = nil
+            if let (copy, id) = Self.split(key) { send(copy, ["t": "file-cancel", "id": id]) }
+        }
+        beats += 1
+        if beats % 12 == 0 { for (copy, wire) in present() where wire >= Self.wire { sendSums(to: copy) } }
+        if beats % 12 == 6 { fetchFiles() }
+    }
+
+    /// The room is over: what's unsaved is written now, and nothing more is.
+    func close() {
+        save()
+        closed = true
+    }
+
+    /// The wish is gone: everything kept for it goes.
+    func forget() {
+        closed = true
+        scopes = [:]
+        unsaved = []
+        try? FileManager.default.removeItem(at: folder)
+    }
+
+    // MARK: Collections
+
+    /// Which scope a copy's collection is in: the wish's own, or the copy's app's own.
+    private func scope(of name: String, copy: String) -> String {
+        Self.isWishWide(name) ? Self.wishWide : WishChannel.app(of: copy)
+    }
+
+    private func collections(_ scope: String) -> [String: [String: Item]] {
+        if let kept = scopes[scope] { return kept }
+        var list: [String: [String: Item]] = [:]
+        if let sealed = try? Data(contentsOf: scopeURL(scope)), let box = try? AES.GCM.SealedBox(combined: sealed),
+           let plain = try? AES.GCM.open(box, using: sealing),
+           let kept = (try? JSONSerialization.jsonObject(with: plain)) as? [String: [String: Any]] {
+            for (name, items) in kept where Self.isCollection(name) {
+                for (id, json) in items where Self.isItemID(id) {
+                    guard let entry = Entry(json) else { continue }
+                    list[name, default: [:]][id] = Item(entry: entry, held: Self.held(id, entry))
+                }
+            }
+        }
+        scopes[scope] = list
+        dropExpired(scope)
+        return scopes[scope] ?? [:]
+    }
+
+    /// Items a copy sent, each taken when it's later than what Lamp has, so whatever order they come in it ends with the
+    /// same as every copy. What a scope holds is bounded as a copy bounds what it holds from others: twice what every app
+    /// of the wish could set, the oldest deletions let go first when a flood needs room.
+    private func merge(_ scope: String, _ name: String, _ given: [String: Any]) {
+        var all = collections(scope)
+        guard all[name] != nil || all.count < Self.collectionsLimit * 2 else { return }
+        let most = Self.sharedLimit * 2 * max(2, appCount)
+        var held = all.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.held } }
+        var removals: [(String, String)]? = nil, next = 0
+        func oldestRemoval(except id: String) -> (String, String)? {
+            if removals == nil {
+                removals = all.flatMap { name, list in list.filter { $0.value.entry.value == nil }.map { (name, $0.key, $0.value.entry) } }
+                    .sorted { $1.2.isLater(than: $0.2) }.map { ($0.0, $0.1) }
+            }
+            while let list = removals, next < list.count {
+                let each = list[next]
+                next += 1
+                if each != (name, id), all[each.0]?[each.1]?.entry.value == nil { return each }
+            }
+            return nil
+        }
+        let old = Int64(Date().timeIntervalSince1970 * 1000) - Self.removalsKept
+        var changed: [String] = []
+        for (id, json) in given.sorted(by: { $0.key < $1.key }) {
+            guard Self.isItemID(id), let entry = Entry(json) else { continue }
+            let had = all[name]?[id]
+            if let had, !entry.isLater(than: had.entry) { continue }
+            let size = entry.value.map(Self.size(of:)) ?? 32
+            if size > Self.itemLimit * 2 { continue }
+            let need = id.utf8.count + max(32, size)
+            // A deletion too old to keep, or with no room left to keep it, still deletes; a value with no room is left.
+            func dropOnly() {
+                guard entry.value == nil, let had = all[name]?.removeValue(forKey: id) else { return }
+                held -= had.held
+                changed.append(id)
+            }
+            if entry.value == nil, entry.ms < old { dropOnly(); continue }
+            while held - (had?.held ?? 0) + need > most, let gone = oldestRemoval(except: id), let removal = all[gone.0]?.removeValue(forKey: gone.1) {
+                held -= removal.held
+            }
+            if held - (had?.held ?? 0) + need > most { dropOnly(); continue }
+            held += need - (had?.held ?? 0)
+            all[name, default: [:]][id] = Item(entry: entry, held: need)
+            changed.append(id)
+        }
+        all = all.filter { !$0.value.isEmpty }
+        scopes[scope] = all
+        unsaved.insert(scope)
+        saveSoon()
+        if name.hasPrefix("files:") {
+            for id in changed { dropStaleBytes(scope, name, id: id) }
+            if !changed.isEmpty { fetchFiles() }
+        }
+    }
+
+    private func dropExpired(_ scope: String) {
+        let old = Int64(Date().timeIntervalSince1970 * 1000) - Self.removalsKept
+        guard let all = scopes[scope], all.values.contains(where: { $0.values.contains { $0.entry.value == nil && $0.entry.ms <= old } }) else { return }
+        scopes[scope] = all.mapValues { $0.filter { $0.value.entry.value != nil || $0.value.entry.ms > old } }.filter { !$0.value.isEmpty }
+        unsaved.insert(scope)
+        saveSoon()
+    }
+
+    /// Sends items to a copy a few at a time, so each message stays within what a message may be.
+    private func shareItems(_ name: String, _ list: [String: Entry], to copy: String) {
+        var batch: [String: Any] = [:], size = 0
+        func flush() {
+            guard !batch.isEmpty else { return }
+            send(copy, ["t": "store", "op": "items", "s": name, "items": batch])
+            batch = [:]
+            size = 0
+        }
+        for (id, entry) in list.sorted(by: { $0.key < $1.key }) {
+            let json = entry.json
+            let bytes = Self.json([id: json])?.count ?? 0
+            if size + bytes > 12 * 1024 { flush() }
+            batch[id] = json
+            size += bytes
+        }
+        flush()
+    }
+
+    /// Tells a copy what each sixteenth of each collection it shares adds up to here: its app's own and the wish's own.
+    private func sendSums(to copy: String) {
+        var said: [String: String] = [:]
+        for scope in [WishChannel.app(of: copy), Self.wishWide] {
+            for (name, list) in collections(scope) where !list.isEmpty {
+                said[name] = sums(scope, name).map { String(format: "%08x", $0) }.joined()
+            }
+        }
+        for batch in Self.batches(said) { send(copy, ["t": "store", "op": "sum", "sums": batch]) }
+    }
+
+    private func sums(_ scope: String, _ name: String) -> [UInt32] {
+        var parts = [UInt32](repeating: 0, count: 16)
+        for (id, item) in collections(scope)[name] ?? [:] {
+            parts[Int(Self.fnv(id) & 15)] ^= Self.fnv("\(id)\u{0}\(item.entry.ms)\u{0}\(item.entry.n)\u{0}\(item.entry.peer)")
+        }
+        return parts
+    }
+
+    // MARK: Shared files
+
+    private func bytesURL(_ scope: String, _ name: String, id: String, sum: String) -> URL {
+        folder.appendingPathComponent("files").appendingPathComponent(Self.hex(Data(SHA256.hash(data: Data("\(scope)\u{0}\(name)\u{0}\(id)".utf8))).prefix(16)) + "-" + sum)
+    }
+
+    private func hasBytes(_ scope: String, _ name: String, id: String, sum: String) -> Bool {
+        FileManager.default.fileExists(atPath: bytesURL(scope, name, id: id, sum: sum).path)
+    }
+
+    private func dropStaleBytes(_ scope: String, _ name: String, id: String) {
+        let sum = (collections(scope)[name]?[id]?.entry.value as? [String: Any])?["sum"] as? String
+        let prefix = bytesURL(scope, name, id: id, sum: "").lastPathComponent
+        let files = folder.appendingPathComponent("files")
+        for each in (try? FileManager.default.contentsOfDirectory(atPath: files.path)) ?? [] where each.hasPrefix(prefix) && each != prefix + (sum ?? "") {
+            try? FileManager.default.removeItem(at: files.appendingPathComponent(each))
+        }
+    }
+
+    /// Asks a copy for each shared file Lamp lacks: the one that set it first, then each other in turn, two at a time of
+    /// each, again after a minute without them.
+    private func fetchFiles() {
+        let open = present().filter { $0.value >= Self.wire }.keys.sorted()
+        guard !open.isEmpty, !closed else { return }
+        let now = Date()
+        for (scope, all) in scopes.sorted(by: { $0.key < $1.key }) {
+            let sources = open.filter { scope == Self.wishWide || WishChannel.app(of: $0) == scope }
+            guard !sources.isEmpty else { continue }
+            var here = 0
+            for (name, list) in all where name.hasPrefix("files:") {
+                for (id, item) in list {
+                    guard let meta = item.entry.value as? [String: Any], let sum = meta["sum"] as? String, let size = meta["size"] as? Int,
+                          hasBytes(scope, name, id: id, sum: sum) else { continue }
+                    here += size
+                }
+            }
+            for (name, list) in all.sorted(by: { $0.key < $1.key }) where name.hasPrefix("files:") {
+                for (id, item) in list.sorted(by: { $0.key < $1.key }) {
+                    guard let meta = item.entry.value as? [String: Any], let sum = meta["sum"] as? String, let size = meta["size"] as? Int,
+                          size <= ControllerWire.file else { continue }
+                    let key = scope + "\t" + name + "\t" + id
+                    if hasBytes(scope, name, id: id, sum: sum) { fileAsks[key] = nil; fileTries[key] = nil; continue }
+                    if let ask = fileAsks[key], sources.contains(ask.copy), now.timeIntervalSince(ask.at) < 60 { continue }
+                    guard here + size <= Self.filesLimit * 2 else { break }
+                    let tries = fileTries[key] ?? 0
+                    let order = sources.contains(item.entry.peer) ? [item.entry.peer] + sources.filter { $0 != item.entry.peer } : sources
+                    let source = order[tries % order.count]
+                    guard fileAsks.values.filter({ $0.copy == source && now.timeIntervalSince($0.at) < 60 }).count < 2 else { continue }
+                    fileTries[key] = tries + 1
+                    fileAsks[key] = (source, now)
+                    here += size
+                    send(source, ["t": "store", "op": "file", "s": name, "id": id, "sum": sum])
+                }
+            }
+        }
+    }
+
+    /// A copy sending Lamp a file's bytes it asked for: taken only for a shared file Lamp has as that size and lacks.
+    func fileStarts(_ m: [String: Any], from copy: String) {
+        guard !closed, let id = ControllerWire.isID(m["id"]) else { return }
+        let key = "\(copy)\t\(id)"
+        let channel = m["ch"] as? String ?? ""
+        let name = String(channel.dropFirst(6))
+        let item = m["name"] as? String ?? ""
+        let scope = scope(of: name, copy: copy)
+        guard channel.hasPrefix("store:files:"), Self.isCollection(name), let size = m["size"] as? Int, size >= 0, size <= ControllerWire.file,
+              incoming[key] == nil, incoming.keys.filter({ $0.hasPrefix(copy + "\t") }).count < ControllerWire.transfers,
+              let meta = collections(scope)[name]?[item]?.entry.value as? [String: Any], meta["size"] as? Int == size,
+              let sum = meta["sum"] as? String, !hasBytes(scope, name, id: item, sum: sum) else {
+            return send(copy, ["t": "file-refuse", "id": id, "reason": "Lamp doesn't need that file now."])
+        }
+        let file = Incoming(scope: scope, name: name, id: item, sum: sum, size: size)
+        incoming[key] = file
+        if size == 0 { finish(key, file, from: copy, id: id) }
+    }
+
+    func piece(_ bytes: Data, id: UInt32, from copy: String) {
+        let key = "\(copy)\t\(id)"
+        guard let file = incoming[key] else { return }
+        guard file.data.count + bytes.count <= file.size else {
+            incoming[key] = nil
+            return send(copy, ["t": "file-refuse", "id": id, "reason": "The file was bigger than it said."])
+        }
+        file.data.append(bytes)
+        file.moved = Date()
+        send(copy, ["t": "file-ack", "id": id, "got": file.data.count])
+        if file.data.count == file.size { finish(key, file, from: copy, id: id) }
+    }
+
+    private func finish(_ key: String, _ file: Incoming, from copy: String, id: UInt32) {
+        incoming[key] = nil
+        if file.size == 0 { send(copy, ["t": "file-ack", "id": id, "got": 0]) }
+        fileAsks[file.scope + "\t" + file.name + "\t" + file.id] = nil
+        guard Self.checksum(file.data) == file.sum, let sealed = try? AES.GCM.seal(file.data, using: sealing).combined else { return fetchFiles() }
+        let url = bytesURL(file.scope, file.name, id: file.id, sum: file.sum)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        guard Self.write(sealed, to: url) else { return }
+        fileTries[file.scope + "\t" + file.name + "\t" + file.id] = nil
+        dropStaleBytes(file.scope, file.name, id: file.id)
+        fetchFiles()
+    }
+
+    func fileEnded(_ m: [String: Any], from copy: String) {
+        guard let id = ControllerWire.isID(m["id"]) else { return }
+        let key = "\(copy)\t\(id)"
+        switch m["t"] as? String {
+        case "file-ack":
+            guard let file = outgoing[key], let got = m["got"] as? Int, got >= file.acknowledged, got <= file.offset else { return }
+            file.acknowledged = got
+            file.moved = Date()
+            if got == file.bytes.count { outgoing[key] = nil } else { pump(key, to: copy) }
+        case "file-refuse":
+            outgoing[key] = nil
+        case "file-cancel":
+            incoming[key] = nil
+        default:
+            break
+        }
+    }
+
+    /// A copy asked for a shared file's bytes: sent when Lamp has them as the file is now, two at a time to each copy.
+    private func sendFile(_ scope: String, _ name: String, id: String, sum: String, to copy: String) {
+        guard let meta = collections(scope)[name]?[id]?.entry.value as? [String: Any], meta["sum"] as? String == sum,
+              outgoing.keys.filter({ $0.hasPrefix(copy + "\t") }).count < ControllerWire.transfers,
+              let sealed = try? Data(contentsOf: bytesURL(scope, name, id: id, sum: sum)),
+              let box = try? AES.GCM.SealedBox(combined: sealed), let bytes = try? AES.GCM.open(box, using: sealing),
+              Self.checksum(bytes) == sum else { return }
+        let fileID = nextFile
+        nextFile = nextFile >= UInt32(Int32.max) - 1 ? 1 : nextFile + 1
+        let key = "\(copy)\t\(fileID)"
+        outgoing[key] = Outgoing(bytes: bytes)
+        send(copy, ["t": "file", "id": Int(fileID), "name": id, "type": String((meta["type"] as? String ?? "").prefix(100)),
+                    "size": bytes.count, "ch": "store:" + name])
+        pump(key, to: copy)
+    }
+
+    /// A file's next pieces, never more than a window past what the copy has acknowledged.
+    private func pump(_ key: String, to copy: String) {
+        guard let file = outgoing[key], let (_, id) = Self.split(key) else { return }
+        while file.offset < file.bytes.count, file.offset - file.acknowledged < ControllerWire.window {
+            let count = min(ControllerWire.chunk, file.bytes.count - file.offset)
+            let piece = WishChannel.piece(peer: WishChannel.relayName, id: id, bytes: file.bytes.subdata(in: file.offset..<(file.offset + count)))
+            guard sendPiece(copy, piece) else { break }
+            file.offset += count
+        }
+    }
+
+    // MARK: Kept on disk
+
+    private func scopeURL(_ scope: String) -> URL {
+        folder.appendingPathComponent(Self.hex(Data(SHA256.hash(data: Data(scope.utf8))).prefix(16)) + ".kept")
+    }
+
+    /// Written a moment after a change, so a burst of them is written once.
+    private func saveSoon() {
+        guard !saving, !closed else { return }
+        saving = true
+        queue.asyncAfter(deadline: .now() + 1) { [weak self] in self?.save() }
+    }
+
+    private func save() {
+        saving = false
+        guard !closed else { return }
+        for scope in unsaved {
+            let url = scopeURL(scope)
+            let list = scopes[scope] ?? [:]
+            if list.isEmpty { try? FileManager.default.removeItem(at: url); continue }
+            guard let plain = Self.json(list.mapValues { $0.mapValues(\.entry.json) }),
+                  let sealed = try? AES.GCM.seal(plain, using: sealing).combined else { continue }
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            Self.write(sealed, to: url)
+        }
+        unsaved = []
+    }
+
+    /// Written whole, readable by this account alone.
+    @discardableResult
+    private static func write(_ data: Data, to url: URL) -> Bool {
+        guard (try? data.write(to: url, options: .atomic)) != nil else { return false }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        return true
+    }
+
+    // MARK: As the libraries have them
+
+    static func isCollection(_ name: String) -> Bool {
+        var plain = name.hasPrefix("files:") ? String(name.dropFirst(6)) : name
+        if plain.hasPrefix("wish:") { plain = String(plain.dropFirst(5)) }
+        return (1...64).contains(plain.utf8.count) && plain != "__proto__" && plain.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }
+    }
+    static func isWishWide(_ name: String) -> Bool { (name.hasPrefix("files:") ? String(name.dropFirst(6)) : name).hasPrefix("wish:") }
+    static func isItemID(_ id: String) -> Bool { (1...128).contains(id.utf8.count) && id != "__proto__" }
+    static func size(of value: Any) -> Int {
+        ((try? JSONSerialization.data(withJSONObject: [value], options: .withoutEscapingSlashes)).map(\.count) ?? 2) - 2
+    }
+    static func held(_ id: String, _ entry: Entry) -> Int { id.utf8.count + max(32, entry.value.map(size(of:)) ?? 32) }
+    static func fnv(_ text: String) -> UInt32 {
+        var hash: UInt32 = 2166136261
+        for byte in text.utf8 { hash = (hash ^ UInt32(byte)) &* 16777619 }
+        return hash
+    }
+    static func parts(_ sum: String) -> [UInt32] {
+        let chars = Array(sum.utf8)
+        guard chars.count == 128 else { return [UInt32](repeating: 0, count: 16) }
+        return (0..<16).map { UInt32(String(decoding: chars[($0 * 8)..<($0 * 8 + 8)], as: UTF8.self), radix: 16) ?? 0 }
+    }
+    static func hex(_ data: Data) -> String { data.map { String(format: "%02x", $0) }.joined() }
+    static func checksum(_ data: Data) -> String { hex(Data(SHA256.hash(data: data)).prefix(16)) }
+    static func json(_ object: Any) -> Data? { try? JSONSerialization.data(withJSONObject: object, options: .withoutEscapingSlashes) }
+    private static func split(_ key: String) -> (String, UInt32)? {
+        let parts = key.split(separator: "\t")
+        guard parts.count == 2, let id = UInt32(parts[1]) else { return nil }
+        return (String(parts[0]), id)
+    }
+    /// A map split so each part stays within a message, as sums and asks for many collections can't go in one.
+    private static func batches<T>(_ map: [String: T]) -> [[String: T]] {
+        var out: [[String: T]] = [], batch: [String: T] = [:], size = 0
+        for (name, value) in map.sorted(by: { $0.key < $1.key }) {
+            let bytes = (json([name: value])?.count ?? 0)
+            if size + bytes > 12 * 1024, !batch.isEmpty { out.append(batch); batch = [:]; size = 0 }
+            batch[name] = value
+            size += bytes
+        }
+        if !batch.isEmpty { out.append(batch) }
+        return out
     }
 }
 

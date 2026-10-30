@@ -1,4 +1,40 @@
 #!/bin/zsh
+LAMP_USAGE='  <key>NSMicrophoneUsageDescription</key><string>The Little House listens to your microphone.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>The Little House turns your speech into text.</string>
+  <key>NSCameraUsageDescription</key><string>The Little House uses your camera.</string>
+  <key>NSPhotoLibraryUsageDescription</key><string>The Little House uses your photos.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key><string>The Little House saves pictures to your photos.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>The Little House reads and adds calendar events.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>The Little House reads and adds reminders.</string>
+  <key>NSContactsUsageDescription</key><string>The Little House looks up people in your contacts.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>The Little House uses your location.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>The Little House uses your location, also in the background.</string>
+  <key>NSMotionUsageDescription</key><string>The Little House uses the motion sensors and your step count.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>The Little House connects to Bluetooth devices.</string>
+  <key>NSFaceIDUsageDescription</key><string>The Little House unlocks with Face ID.</string>
+  <key>NSHealthShareUsageDescription</key><string>The Little House reads your health data.</string>
+  <key>NSHealthUpdateUsageDescription</key><string>The Little House saves health data.</string>
+  <key>NFCReaderUsageDescription</key><string>The Little House reads NFC tags.</string>
+  <key>NSSiriUsageDescription</key><string>The Little House works with Siri and Shortcuts.</string>
+  <key>NSNearbyInteractionUsageDescription</key><string>The Little House finds nearby devices.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>The Little House talks to Lamp on your Mac and to devices on your network.</string>
+  <key>NSAppleMusicUsageDescription</key><string>The Little House plays music from your library.</string>
+  <key>NSHomeKitUsageDescription</key><string>The Little House reads and controls your home.</string>'
+LAMP_MAC_USAGE='  <key>NSMicrophoneUsageDescription</key><string>The Little House listens to your microphone.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>The Little House turns your speech into text.</string>
+  <key>NSCameraUsageDescription</key><string>The Little House uses your camera.</string>
+  <key>NSPhotoLibraryUsageDescription</key><string>The Little House uses your photos.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key><string>The Little House saves pictures to your photos.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>The Little House reads and adds calendar events.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>The Little House reads and adds reminders.</string>
+  <key>NSContactsUsageDescription</key><string>The Little House looks up people in your contacts.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>The Little House connects to Bluetooth devices.</string>
+  <key>NSAppleEventsUsageDescription</key><string>The Little House reads your email and drafts replies through Mail.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>The Little House looks for printers and other devices on your network.</string>
+  <key>NSLocationUsageDescription</key><string>The Little House uses your location.</string>
+  <key>NSLocationWhenInUseUsageDescription</key><string>The Little House uses your location.</string>
+  <key>NSAppleMusicUsageDescription</key><string>The Little House plays music from your library.</string>'
+LAMP_APP_NAME='The Little House'
 # Builds the game for this Mac (./build.sh mac, build/TheLittleHouse.app), the iPhone and iPad simulator (./build.sh ios,
 # build/iOS/TheLittleHouse.app) or Android (./build.sh android): the Swift around the page, with the page copied in.
 set -euo pipefail
@@ -62,8 +98,8 @@ if [[ "$PLACE" == "ios" ]]; then
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleExecutable</key><string>TheLittleHouse</string>
   <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.thelittlehouse</string>
-  <key>CFBundleName</key><string>The Little House</string>
-  <key>CFBundleDisplayName</key><string>The Little House</string>
+  <key>CFBundleName</key><string>${LAMP_APP_NAME}</string>
+  <key>CFBundleDisplayName</key><string>${LAMP_APP_NAME}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>CFBundleVersion</key><string>1</string>
@@ -77,27 +113,7 @@ if [[ "$PLACE" == "ios" ]]; then
   <key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeRight</string><string>UIInterfaceOrientationLandscapeLeft</string></array>
   <key>GCSupportsControllerUserInteraction</key><true/>
   <key>GCSupportedGameControllers</key><array><dict><key>ProfileName</key><string>ExtendedGamepad</string></dict></array>
-  <key>NSMicrophoneUsageDescription</key><string>The Little House listens to your microphone.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>The Little House turns your speech into text.</string>
-  <key>NSCameraUsageDescription</key><string>The Little House uses your camera.</string>
-  <key>NSPhotoLibraryUsageDescription</key><string>The Little House uses your photos.</string>
-  <key>NSPhotoLibraryAddUsageDescription</key><string>The Little House saves pictures to your photos.</string>
-  <key>NSCalendarsFullAccessUsageDescription</key><string>The Little House reads and adds calendar events.</string>
-  <key>NSRemindersFullAccessUsageDescription</key><string>The Little House reads and adds reminders.</string>
-  <key>NSContactsUsageDescription</key><string>The Little House looks up people in your contacts.</string>
-  <key>NSLocationWhenInUseUsageDescription</key><string>The Little House uses your location.</string>
-  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>The Little House uses your location, also in the background.</string>
-  <key>NSMotionUsageDescription</key><string>The Little House uses the motion sensors and your step count.</string>
-  <key>NSBluetoothAlwaysUsageDescription</key><string>The Little House connects to Bluetooth devices.</string>
-  <key>NSFaceIDUsageDescription</key><string>The Little House unlocks with Face ID.</string>
-  <key>NSHealthShareUsageDescription</key><string>The Little House reads your health data.</string>
-  <key>NSHealthUpdateUsageDescription</key><string>The Little House saves health data.</string>
-  <key>NFCReaderUsageDescription</key><string>The Little House reads NFC tags.</string>
-  <key>NSSiriUsageDescription</key><string>The Little House works with Siri and Shortcuts.</string>
-  <key>NSNearbyInteractionUsageDescription</key><string>The Little House finds nearby devices.</string>
-  <key>NSLocalNetworkUsageDescription</key><string>The Little House talks to Lamp on your Mac and to devices on your network.</string>
-  <key>NSAppleMusicUsageDescription</key><string>The Little House plays music from your library.</string>
-  <key>NSHomeKitUsageDescription</key><string>The Little House reads and controls your home.</string>
+${LAMP_USAGE}
   <key>DTPlatformName</key><string>iphonesimulator</string>
   <key>CFBundleSupportedPlatforms</key><array><string>iPhoneSimulator</string></array>
 </dict></plist>
@@ -125,27 +141,14 @@ else
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleExecutable</key><string>TheLittleHouse</string>
   <key>CFBundleIdentifier</key><string>dev.lamp.dev.app.thelittlehouse</string>
-  <key>CFBundleName</key><string>The Little House</string>
-  <key>CFBundleDisplayName</key><string>The Little House</string>
+  <key>CFBundleName</key><string>${LAMP_APP_NAME}</string>
+  <key>CFBundleDisplayName</key><string>${LAMP_APP_NAME}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
   <key>GCSupportsGameMode</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>The Little House listens to your microphone.</string>
-  <key>NSSpeechRecognitionUsageDescription</key><string>The Little House turns your speech into text.</string>
-  <key>NSCameraUsageDescription</key><string>The Little House uses your camera.</string>
-  <key>NSPhotoLibraryUsageDescription</key><string>The Little House uses your photos.</string>
-  <key>NSPhotoLibraryAddUsageDescription</key><string>The Little House saves pictures to your photos.</string>
-  <key>NSCalendarsFullAccessUsageDescription</key><string>The Little House reads and adds calendar events.</string>
-  <key>NSRemindersFullAccessUsageDescription</key><string>The Little House reads and adds reminders.</string>
-  <key>NSContactsUsageDescription</key><string>The Little House looks up people in your contacts.</string>
-  <key>NSBluetoothAlwaysUsageDescription</key><string>The Little House connects to Bluetooth devices.</string>
-  <key>NSAppleEventsUsageDescription</key><string>The Little House reads your email and drafts replies through Mail.</string>
-  <key>NSLocalNetworkUsageDescription</key><string>The Little House looks for printers and other devices on your network.</string>
-  <key>NSLocationUsageDescription</key><string>The Little House uses your location.</string>
-  <key>NSLocationWhenInUseUsageDescription</key><string>The Little House uses your location.</string>
-  <key>NSAppleMusicUsageDescription</key><string>The Little House plays music from your library.</string>
+${LAMP_MAC_USAGE}
   <key>LampPlayer</key><dict><key>kind</key><string>page</string><key>scheme</key><string>lamp-web-app</string></dict>
   $PLAYED
   <key>NSPrincipalClass</key><string>NSApplication</string>
