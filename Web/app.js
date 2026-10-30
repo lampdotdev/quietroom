@@ -2,7 +2,8 @@
  * adapted from Moodist by remvze (MIT, https://github.com/remvze/moodist). The room shapes the mix on top of each
  * sound's own volume: the window lets the outside in (louder, and no longer muffled by a low-pass filter), the
  * armchair's place between the window and the fire makes the fire and the clock nearer or further, the fireplace
- * lights and puts out the fire sound, and the clock starts and stops its ticking.
+ * lights and puts out the fire sound, and the clock starts and stops its ticking. The other places (places.js) work
+ * the same way: each has its own mix, and its own things to touch.
  * Moodist's store (src/stores/sound.ts) and its sound hook (src/hooks/use-sound.ts) are what this follows: a sound
  * is selected or not, each has its own volume and can swell slowly, one Play plays every selected sound, and
  * selecting a sound starts playing. Its fades (250 ms), its swell (a 10 s cycle down to 40%), its shuffle (four
@@ -37,17 +38,20 @@
   var presets = LampStore.load('presets', []);
 
   // The room: the window open (0 to 1), where the armchair is between the window (0) and the fire (1), the lamp.
+  // And the places: which one you're in, the chair's place on its way through each of the others, and the mix you
+  // left in each (the one you're in is `sounds`).
   var savedHouse = LampStore.load('house', null);
   var house = {
     window: savedHouse && typeof savedHouse.window === 'number' ? savedHouse.window : 0,
-    chair: savedHouse && typeof savedHouse.chair === 'number' ? savedHouse.chair : 0.45,
-    lamp: savedHouse ? savedHouse.lamp !== false : true
+    chair: savedHouse && typeof savedHouse.chair === 'number' ? savedHouse.chair : PLACES.room.seat,
+    lamp: savedHouse ? savedHouse.lamp !== false : true,
+    place: savedHouse && PLACES[savedHouse.place] ? savedHouse.place : 'room',
+    seats: savedHouse && savedHouse.seats || {},
+    mixes: savedHouse && savedHouse.mixes || {}
   };
   // The first evening in the house: rain, the fire and the clock, unless a mix was already on.
   if (!savedHouse && !all.some(function (s) { return state[s.id].selected; })) {
-    state.rain.selected = true; state.rain.volume = 0.6;
-    state.campfire.selected = true; state.campfire.volume = 0.75;
-    state.clock.selected = true; state.clock.volume = 0.5;
+    Object.keys(PLACES.room.mix).forEach(function (id) { state[id].selected = true; state[id].volume = PLACES.room.mix[id]; });
   }
   function saveHouse() { LampStore.save(house, 'house'); }
   if (!savedHouse) { saveHouse(); LampStore.save(state, 'sounds'); }
@@ -55,13 +59,21 @@
   // Sounds from outside: louder and clearer with the window open.
   var OUTSIDE = { 'rain': 1, 'thunderstorm': 1, 'thunder': 1, 'river': 1, 'stream': 1, 'waves': 1, 'wind': 1, 'birds': 1,
     'crickets': 1, 'cicadas': 1, 'wind-chimes': 1, 'train': 1 };
-  function roomFactor(id) {
-    if (OUTSIDE[id]) return 0.38 + 0.62 * house.window;
-    if (id === 'campfire') return 0.3 + 0.7 * house.chair;
-    if (id === 'clock') return 0.55 + 0.45 * house.chair;
-    return 1;
+  function here() { return PLACES[house.place]; }
+  function seat() {
+    if (house.place === 'room') return house.chair;
+    var at = house.seats[house.place];
+    return typeof at === 'number' ? at : here().seat;
   }
-  function roomFilter(id) { return OUTSIDE[id] ? 700 + Math.pow(house.window, 2) * 17000 : 20000; }
+  function setSeat(value) {
+    if (house.place === 'room') house.chair = value; else house.seats[house.place] = value;
+  }
+  function roomFactor(id) {
+    if (house.place === 'room' && OUTSIDE[id]) return 0.38 + 0.62 * house.window;
+    var near = here().near[id];
+    return near ? near[0] + (near[1] - near[0]) * seat() : 1;
+  }
+  function roomFilter(id) { return house.place === 'room' && OUTSIDE[id] ? 700 + Math.pow(house.window, 2) * 17000 : 20000; }
   var playing = false;
   var history = null;            // the mix as it was before Clear, for Undo
   function save() { LampStore.save(state, 'sounds'); }
@@ -160,9 +172,9 @@
     gain.gain.linearRampToValueAtTime(to, now + seconds);
   }
 
-  function start(sound) {
+  function start(sound, seconds) {
     var voice = voices[sound.id];
-    if (voice && !voice.stopping) { ramp(voice.gain, level(sound.id), FADE); return; }
+    if (voice && !voice.stopping) { ramp(voice.gain, level(sound.id), seconds || FADE); return; }
     var ready = sound.file ? load(sound) : Promise.resolve(null);
     ready.then(function (buffer) {
       if (!(playing && state[sound.id].selected)) return;
@@ -179,7 +191,7 @@
       node.connect(filter);
       if (node.startAt !== undefined) node.start(0, node.startAt); else node.start();
       voices[sound.id] = { node: node, gain: gain, filter: filter, stopping: false };
-      ramp(gain, level(sound.id), FADE);
+      ramp(gain, level(sound.id), seconds || FADE);
     }, function (error) {
       notify(error.message);
     });
@@ -204,7 +216,7 @@
   // Every sound playing that should, and none that shouldn't.
   function sync(fadeSeconds) {
     all.forEach(function (sound) {
-      if (playing && state[sound.id].selected) start(sound);
+      if (playing && state[sound.id].selected) start(sound, fadeSeconds);
       else stop(sound.id, fadeSeconds || FADE);
     });
     render();
@@ -309,19 +321,18 @@
     if (!s.selected) { s.selected = true; if (volume) s.volume = volume; history = null; }
   }
 
-  var SPOTS = {
-    window: function () { return house.window > 0.5 ? 'Close the window' : 'Open the window'; },
-    fire: function () { return state.campfire.selected ? 'Let the fire go out' : 'Light the fire'; },
-    clock: function () { return state.clock.selected ? 'Stop the clock' : 'Start the clock'; },
-    lamp: function () { return house.lamp ? 'Turn off the lamp' : 'Turn on the lamp'; },
-    chair: function () { return house.chair < 0.5 ? 'Move closer to the fire' : 'Move back by the window'; }
-  };
-  var SHORT = { window: 'Window', fire: 'Fire', clock: 'Clock', lamp: 'Lamp', chair: 'Chair' };
-  function spotOn(name) {
-    if (name === 'window') return house.window > 0.5;
-    if (name === 'fire') return state.campfire.selected;
-    if (name === 'clock') return state.clock.selected;
-    if (name === 'lamp') return house.lamp;
+  // What each thing in the place says it will do, and whether it's on.
+  function spotOf(name) { return here().spots.filter(function (spot) { return spot.id === name; })[0]; }
+  function spotText(spot) {
+    if (spot.id === 'window') return house.window > 0.5 ? 'Close the window' : 'Open the window';
+    if (spot.id === 'lamp') return house.lamp ? 'Turn off the lamp' : 'Turn on the lamp';
+    if (spot.id === 'chair') return seat() < 0.5 ? spot.off : spot.on;
+    return state[spot.sound].selected ? spot.on : spot.off;
+  }
+  function spotOn(spot) {
+    if (spot.id === 'window') return house.window > 0.5;
+    if (spot.id === 'lamp') return house.lamp;
+    if (spot.sound) return state[spot.sound].selected;
     return true;
   }
 
@@ -332,18 +343,17 @@
       // Opening onto a quiet night lets the rain in.
       if (house.window && !selectedIds().some(function (id) { return OUTSIDE[id]; })) turnOn('rain', 0.6);
       notify(house.window ? 'The window is open. The rain comes in.' : 'The window is shut. The rain is softer.');
-    } else if (name === 'fire') {
-      if (state.campfire.selected) { state.campfire.selected = false; }
-      else turnOn('campfire', 0.75);
-    } else if (name === 'clock') {
-      if (state.clock.selected) state.clock.selected = false;
-      else turnOn('clock', 0.5);
     } else if (name === 'lamp') {
       house.lamp = !house.lamp;
     } else if (name === 'chair') {
-      house.chair = house.chair < 0.5 ? 1 : 0;
+      setSeat(seat() < 0.5 ? 1 : 0);
     } else if (name === 'chair-to') {
-      house.chair = Math.max(0, Math.min(1, value));
+      setSeat(Math.max(0, Math.min(1, value)));
+    } else {
+      var spot = spotOf(name);
+      if (!spot) return;
+      if (state[spot.sound].selected) state[spot.sound].selected = false;
+      else turnOn(spot.sound, spot.volume);
     }
     if (selectedIds().length) playing = true; else playing = false;
     save();
@@ -355,23 +365,65 @@
   var hotspots = {};
   function buildHotspots() {
     var layer = $('#hotspots');
-    Object.keys(SPOTS).forEach(function (name) {
+    layer.innerHTML = '';
+    hotspots = {};
+    here().spots.forEach(function (spot) {
+      var name = spot.id;
       var button = el('button', { type: 'button', class: 'spot', 'data-spot': name, onclick: function () { touch(name); } }, [
         el('span', { class: 'dot', 'aria-hidden': 'true' }), el('span', { class: 'spot-label' }),
-        el('span', { class: 'spot-short', 'aria-hidden': 'true', text: SHORT[name] })
+        el('span', { class: 'spot-short', 'aria-hidden': 'true', text: spot.short })
       ]);
       layer.appendChild(button);
       hotspots[name] = button;
     });
   }
   function renderHotspots() {
-    for (var name in hotspots) {
-      if (!hotspots.hasOwnProperty(name)) continue;
-      var label = SPOTS[name]();
-      hotspots[name].querySelector('.spot-label').textContent = label;
-      hotspots[name].setAttribute('aria-label', label);
-      hotspots[name].classList.toggle('off', !spotOn(name));
-    }
+    here().spots.forEach(function (spot) {
+      var button = hotspots[spot.id], label = spotText(spot);
+      button.querySelector('.spot-label').textContent = label;
+      button.setAttribute('aria-label', label);
+      button.classList.toggle('off', !spotOn(spot));
+    });
+  }
+
+  // MARK: The places
+
+  var CROSSFADE = 1.2;
+
+  // The mix you left here stays here: going away keeps it, coming back brings it back.
+  function goTo(id) {
+    if (id === house.place || !PLACES[id]) return;
+    house.mixes[house.place] = currentMix();
+    house.place = id;
+    override(house.mixes[id] || PLACES[id].mix);
+    saveHouse();
+    asleep = false;
+    playing = selectedIds().length > 0;
+    if (playing) audio();
+    welcomeGone();
+    buildHotspots();
+    renderPlace();
+    render(true);
+    sync(CROSSFADE);
+    reshape(CROSSFADE);
+  }
+
+  function buildPlaces() {
+    var nav = $('#places');
+    PLACE_ORDER.forEach(function (id) {
+      var place = PLACES[id];
+      nav.appendChild(el('button', { type: 'button', 'data-place': id, onclick: function () { goTo(id); } }, [
+        el('span', { 'aria-hidden': 'true', text: place.icon + ' ' }), place.label
+      ]));
+    });
+  }
+  function renderPlace() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-place]'), function (button) {
+      button.setAttribute('aria-pressed', button.getAttribute('data-place') === house.place ? 'true' : 'false');
+    });
+    document.body.classList.toggle('outdoors', house.place !== 'room');
+    $('#welcome-note').textContent = here().welcome;
+    $('#mixer-note').textContent = here().mixer;
   }
 
   function welcomeGone() {
@@ -380,20 +432,35 @@
     var hadFocus = document.activeElement === $('#come-in');
     w.classList.add('gone');
     $('#come-in').disabled = true;
-    if (hadFocus) Lamp.focus(hotspots.window || '#play');
+    if (hadFocus) Lamp.focus(hotspots[here().spots[0].id] || '#play');
   }
 
   function describe() {
     var count = selectedIds().length;
     if (asleep) return 'The house is asleep. Touch anything to wake it.';
-    if (!count) return 'All quiet. Touch the window, the fire or the clock.';
-    if (!playing) return 'Quiet for now. Touch anything in the room to begin.';
+    if (!count) return here().quiet;
+    if (!playing) return 'Quiet for now. Touch anything here to begin.';
+    if (house.place !== 'room') return describeOutdoors();
     var bits = [];
     var outside = selectedIds().some(function (id) { return OUTSIDE[id]; });
     if (outside) bits.push(house.window > 0.5 ? 'Window open' : 'Window shut');
     bits.push(house.chair > 0.66 ? 'sitting by the fire' : house.chair < 0.33 ? 'sitting by the window' : 'sitting in the middle');
     bits.push(state.clock.selected ? 'the clock ticking' : 'the clock still');
     var others = selectedIds().filter(function (id) { return id !== 'rain' && id !== 'campfire' && id !== 'clock'; }).length;
+    var text = bits.join(', ');
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    return text + (others ? ' · ' + others + ' more ' + (others === 1 ? 'sound' : 'sounds') : '');
+  }
+
+  function describeOutdoors() {
+    var place = here(), bits = [seat() > 0.5 ? place.nearText : place.farText], known = {};
+    Object.keys(place.mix).forEach(function (id) { known[id] = true; });
+    place.spots.forEach(function (spot) {
+      if (!spot.sound) return;
+      known[spot.sound] = true;
+      if (state[spot.sound].selected) bits.push(spot.say);
+    });
+    var others = selectedIds().filter(function (id) { return !known[id]; }).length;
     var text = bits.join(', ');
     text = text.charAt(0).toUpperCase() + text.slice(1);
     return text + (others ? ' · ' + others + ' more ' + (others === 1 ? 'sound' : 'sounds') : '');
@@ -406,15 +473,17 @@
     var left = (sleep.endsAt - Date.now()) / 1000;
     return left < 120 ? 1 - Math.max(0, left) / 120 : 0;
   }
-  var view = { window: 0, chair: 0, lamp: true, fire: false, clock: false, rain: false, dim: 0 };
+  var view = { place: 'room', window: 0, chair: 0, lamp: true, fire: false, clock: false, rain: false, chimes: false, dim: 0 };
   window.HouseApp = {
     view: function () {
+      view.place = house.place;
       view.window = house.window;
-      view.chair = house.chair;
+      view.chair = seat();
       view.lamp = house.lamp;
       view.fire = state.campfire.selected && !asleep;
       view.clock = state.clock.selected && playing;
       view.rain = state.rain.selected || state.thunderstorm.selected || state['rain-on-window'].selected;
+      view.chimes = state['wind-chimes'].selected && playing;
       view.dim = sleepDim();
       return view;
     },
@@ -505,7 +574,7 @@
       onkeydown: function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target === node) { e.preventDefault(); toggle(sound.id); } } }, [
       el('div', { class: 'tile-top' }, [el('span', { class: 'icon', 'aria-hidden': 'true', text: sound.icon }), star]),
       el('div', { class: 'label', text: sound.label }),
-      sound.hint ? el('div', { class: 'hint', text: sound.hint }) : null,
+      sound.hint && house.place === 'room' ? el('div', { class: 'hint', text: sound.hint }) : null,
       el('div', { class: 'controls' }, [volume, swell])
     ]);
     // A favourite has two tiles, one in Favorites and one in its category: both are drawn.
@@ -722,6 +791,8 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     buildHotspots();
+    buildPlaces();
+    renderPlace();
     build();
     buildCredits();
     $('#play').addEventListener('click', function () { asleep = false; setPlaying(!playing); });
@@ -764,6 +835,6 @@
 
   // For whoever looks at the room from outside (Lamp's preview): what's selected and whether it's playing.
   window.LittleHouse = {
-    state: function () { return { playing: playing, selected: selectedIds(), voices: Object.keys(voices), context: context ? context.state : 'none' }; }
+    state: function () { return { place: house.place, playing: playing, selected: selectedIds(), voices: Object.keys(voices), context: context ? context.state : 'none' }; }
   };
 })();

@@ -12,7 +12,7 @@ var ROOM_CATEGORIES = [
   { id: 'nature', title: 'Nature', sounds: [
     { id: 'river', label: 'River', icon: '🏞️', file: 'river.mp3' },
     { id: 'stream', label: 'Forest Stream', icon: '💧', file: 'stream.mp3' },
-    { id: 'waves', label: 'Lake Waves', icon: '🌊', file: 'waves.mp3' },
+    { id: 'waves', label: 'Waves', icon: '🌊', file: 'waves.mp3' },
     { id: 'wind', label: 'Wind', icon: '🌬️', file: 'wind.mp3' },
     { id: 'birds', label: 'Birds', icon: '🐦', file: 'birds.mp3' },
     { id: 'crickets', label: 'Crickets', icon: '🌙', file: 'crickets.mp3' },

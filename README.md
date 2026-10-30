@@ -2,7 +2,7 @@
 
 <h1 align="center">The Little House</h1>
 
-<p align="center">A cozy little room on a rainy night, with a fire and a ticking clock to listen to.</p>
+<p align="center">A cozy little room on a rainy night, with a fire and a ticking clock to listen to. Or go to the beach at sunset, a forest in the morning, or a lake under the stars.</p>
 
 <p align="center"><a href="https://lamp.dev/?repo=https://github.com/lampdotdev/thelittlehouse&amp;from=readme"><img src=".github/open-in-lamp.svg" width="164" height="48" alt="Open in Lamp"></a></p>
 
